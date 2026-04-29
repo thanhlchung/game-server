@@ -1,10 +1,15 @@
-// server.js
 const express = require('express');
+const cors = require('cors');
+const path = require('path');
+
+// server.js
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON request bodies
+app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory session store
 const sessions = new Map();
