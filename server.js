@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -10,12 +9,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory session store
 const sessions = new Map();
-let nextSessionID = 1;
 
 function generateSessionID() {
-  return String(nextSessionID++);
+  let id;
+  do {
+    id = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+  } while (sessions.has(id));
+  return id;
 }
 
 function normalizeGameState(gameState) {
@@ -38,7 +39,7 @@ app.post('/createSession', (req, res) => {
     playerIDs: [playerID],
     currentPlayerIndex: 0,
     gameState: normalizeGameState(gameState),
-    gameStarted: false,               // <-- new flag
+    gameStarted: false,
   });
 
   res.json({ sessionID });
@@ -61,7 +62,6 @@ app.post('/joinSession', (req, res) => {
     return res.json(false);
   }
 
-  // Prevent joining if the game has already started
   if (session.gameStarted) {
     return res.json(false);
   }
@@ -74,7 +74,7 @@ app.post('/joinSession', (req, res) => {
   res.json(true);
 });
 
-// 3. Start game (new)
+// 3. Start game
 app.post('/startGame', (req, res) => {
   const { sessionID, playerID, playerList, gameState } = req.body;
 
@@ -87,16 +87,14 @@ app.post('/startGame', (req, res) => {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // Only the owner can start the game
   if (session.ownerID !== playerID) {
     return res.json(false);
   }
 
-  // Update session data
-  session.playerIDs = playerList;                 // overwrite with provided list
-  session.currentPlayerIndex = 0;                 // first player in list
+  session.playerIDs = playerList;
+  session.currentPlayerIndex = 0;
   session.gameState = normalizeGameState(gameState);
-  session.gameStarted = true;                     // mark game as started
+  session.gameStarted = true;
 
   res.json(true);
 });
@@ -117,7 +115,7 @@ app.get('/getPlayers', (req, res) => {
   res.json({ players: session.playerIDs });
 });
 
-// 5. Update game state (only if game started and it's the player's turn)
+// 5. Update game state
 app.post('/updateGameState', (req, res) => {
   const { sessionID, playerID, gameState } = req.body;
 
@@ -130,7 +128,6 @@ app.post('/updateGameState', (req, res) => {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // Additional check: game must be started
   if (!session.gameStarted) {
     return res.json(false);
   }
