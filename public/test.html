@@ -24,7 +24,6 @@
 <body>
     <h1>🎮 Game Server Tester</h1>
 
-    <!-- Keep track of the last used session ID -->
     <div id="currentSession" style="text-align:center; margin-bottom:10px; opacity:0.8;">
         Session: <span id="sessionIdDisplay">—</span>
     </div>
@@ -55,7 +54,7 @@
         <div class="result" id="joinResult"></div>
     </div>
 
-    <!-- 3. Start Game (NEW) -->
+    <!-- 3. Start Game -->
     <div class="section">
         <h2>3. Start Game</h2>
         <label>Session ID</label>
@@ -101,9 +100,18 @@
         <div class="result" id="stateResult"></div>
     </div>
 
-    <!-- 7. End Session -->
+    <!-- 7. Get Current Player (NEW) -->
     <div class="section">
-        <h2>7. End Session</h2>
+        <h2>7. Get Current Player</h2>
+        <label>Session ID</label>
+        <input id="currentPlayerSessionId" placeholder="123">
+        <button onclick="apiGetCurrentPlayer()">Get Current Player</button>
+        <div class="result" id="currentPlayerResult"></div>
+    </div>
+
+    <!-- 8. End Session -->
+    <div class="section">
+        <h2>8. End Session</h2>
         <label>Session ID</label>
         <input id="endSessionId" placeholder="123">
         <label>Player ID (must be owner)</label>
@@ -125,21 +133,17 @@
 
         function setCurrentSession(sessionId) {
             document.getElementById('sessionIdDisplay').textContent = sessionId || '—';
-            // Pre-fill session ID in all sections
             document.getElementById('joinSessionId').value = sessionId || '';
             document.getElementById('startSessionId').value = sessionId || '';
             document.getElementById('playersSessionId').value = sessionId || '';
             document.getElementById('updateSessionId').value = sessionId || '';
             document.getElementById('stateSessionId').value = sessionId || '';
+            document.getElementById('currentPlayerSessionId').value = sessionId || '';
             document.getElementById('endSessionId').value = sessionId || '';
         }
 
         function parseGameStateString(text) {
-            try {
-                return JSON.parse(text);
-            } catch {
-                return text;
-            }
+            try { return JSON.parse(text); } catch { return text; }
         }
 
         async function apiCreateSession() {
@@ -239,6 +243,17 @@
                 showResult('stateResult', data, !res.ok);
             } catch (err) {
                 showResult('stateResult', 'Network error: ' + err.message, true);
+            }
+        }
+
+        async function apiGetCurrentPlayer() {
+            const sessionId = document.getElementById('currentPlayerSessionId').value;
+            try {
+                const res = await fetch(`${BASE_URL}/getCurrentPlayer?sessionID=${encodeURIComponent(sessionId)}`);
+                const data = await res.json();
+                showResult('currentPlayerResult', data, !res.ok);
+            } catch (err) {
+                showResult('currentPlayerResult', 'Network error: ' + err.message, true);
             }
         }
 
