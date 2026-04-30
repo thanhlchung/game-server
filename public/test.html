@@ -18,7 +18,6 @@
         .result { margin-top: 10px; padding: 10px; background: #0f3460; border-radius: 8px; font-family: monospace; font-size: 0.9em; white-space: pre-wrap; word-break: break-word; min-height: 40px; }
         .result.success { border-left: 4px solid #00c853; }
         .result.error { border-left: 4px solid #ff1744; }
-        hr { border: none; border-top: 1px solid #0f3460; margin: 10px 0; }
         .note { font-size: 0.8em; color: #888; text-align: center; margin-top: 20px; }
     </style>
 </head>
@@ -56,18 +55,33 @@
         <div class="result" id="joinResult"></div>
     </div>
 
-    <!-- 3. Get Players -->
+    <!-- 3. Start Game (NEW) -->
     <div class="section">
-        <h2>3. Get Players</h2>
+        <h2>3. Start Game</h2>
+        <label>Session ID</label>
+        <input id="startSessionId" placeholder="123">
+        <label>Owner Player ID</label>
+        <input id="startPlayerId" placeholder="mickey">
+        <label>Player List (comma separated)</label>
+        <input id="startPlayerList" placeholder="mickey,donald" value="mickey,donald">
+        <label>Game State (JSON or string)</label>
+        <textarea id="startGameState" placeholder='{ "board": [".",".","."], "turn": 0 }'>{ "board": [".",".","."], "turn": 0 }</textarea>
+        <button onclick="apiStartGame()">Start Game</button>
+        <div class="result" id="startResult"></div>
+    </div>
+
+    <!-- 4. Get Players -->
+    <div class="section">
+        <h2>4. Get Players</h2>
         <label>Session ID</label>
         <input id="playersSessionId" placeholder="123">
         <button onclick="apiGetPlayers()">Get Players</button>
         <div class="result" id="playersResult"></div>
     </div>
 
-    <!-- 4. Update Game State -->
+    <!-- 5. Update Game State -->
     <div class="section">
-        <h2>4. Update Game State</h2>
+        <h2>5. Update Game State</h2>
         <label>Session ID</label>
         <input id="updateSessionId" placeholder="123">
         <label>Player ID</label>
@@ -78,18 +92,18 @@
         <div class="result" id="updateResult"></div>
     </div>
 
-    <!-- 5. Get Game State -->
+    <!-- 6. Get Game State -->
     <div class="section">
-        <h2>5. Get Game State</h2>
+        <h2>6. Get Game State</h2>
         <label>Session ID</label>
         <input id="stateSessionId" placeholder="123">
         <button onclick="apiGetGameState()">Get Game State</button>
         <div class="result" id="stateResult"></div>
     </div>
 
-    <!-- 6. End Session -->
+    <!-- 7. End Session -->
     <div class="section">
-        <h2>6. End Session</h2>
+        <h2>7. End Session</h2>
         <label>Session ID</label>
         <input id="endSessionId" placeholder="123">
         <label>Player ID (must be owner)</label>
@@ -111,7 +125,9 @@
 
         function setCurrentSession(sessionId) {
             document.getElementById('sessionIdDisplay').textContent = sessionId || '—';
+            // Pre-fill session ID in all sections
             document.getElementById('joinSessionId').value = sessionId || '';
+            document.getElementById('startSessionId').value = sessionId || '';
             document.getElementById('playersSessionId').value = sessionId || '';
             document.getElementById('updateSessionId').value = sessionId || '';
             document.getElementById('stateSessionId').value = sessionId || '';
@@ -141,7 +157,6 @@
                 showResult('createResult', data, !res.ok);
                 if (data.sessionID) {
                     setCurrentSession(data.sessionID);
-                    // Optionally set the gameID in the join section
                     document.getElementById('joinGameId').value = gameId;
                 }
             } catch (err) {
@@ -164,6 +179,26 @@
                 if (data === true) setCurrentSession(sessionId);
             } catch (err) {
                 showResult('joinResult', 'Network error: ' + err.message, true);
+            }
+        }
+
+        async function apiStartGame() {
+            const sessionId = document.getElementById('startSessionId').value;
+            const playerId = document.getElementById('startPlayerId').value;
+            const playerListRaw = document.getElementById('startPlayerList').value;
+            const playerList = playerListRaw.split(',').map(s => s.trim()).filter(Boolean);
+            const stateRaw = document.getElementById('startGameState').value;
+            const gameState = parseGameStateString(stateRaw);
+            try {
+                const res = await fetch(`${BASE_URL}/startGame`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionID: sessionId, playerID: playerId, playerList, gameState })
+                });
+                const data = await res.json();
+                showResult('startResult', data, !res.ok);
+            } catch (err) {
+                showResult('startResult', 'Network error: ' + err.message, true);
             }
         }
 
