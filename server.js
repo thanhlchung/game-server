@@ -1,12 +1,11 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-// server.js
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware to parse JSON request bodies
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -19,18 +18,17 @@ function generateSessionID() {
   return String(nextSessionID++);
 }
 
-// Helper: ensure gameState is stored as a string
 function normalizeGameState(gameState) {
   if (typeof gameState === 'string') return gameState;
   return JSON.stringify(gameState);
 }
 
-// 1. Create session – expects JSON body: { gameID, playerID, gameState }
+// 1. Create session
 app.post('/createSession', (req, res) => {
   const { gameID, playerID, gameState } = req.body;
 
   if (!gameID || !playerID || gameState === undefined) {
-    return res.status(400).json({ error: 'Missing gameID, playerID, or gameState in request body' });
+    return res.status(400).json({ error: 'Missing gameID, playerID, or gameState' });
   }
 
   const sessionID = generateSessionID();
@@ -40,17 +38,18 @@ app.post('/createSession', (req, res) => {
     playerIDs: [playerID],
     currentPlayerIndex: 0,
     gameState: normalizeGameState(gameState),
+    gameStarted: false,               // <-- new flag
   });
 
   res.json({ sessionID });
 });
 
-// 2. Join session – expects JSON body: { gameID, sessionID, playerID }
+// 2. Join session
 app.post('/joinSession', (req, res) => {
   const { gameID, sessionID, playerID } = req.body;
 
   if (!gameID || !sessionID || !playerID) {
-    return res.status(400).json({ error: 'Missing gameID, sessionID, or playerID in request body' });
+    return res.status(400).json({ error: 'Missing gameID, sessionID, or playerID' });
   }
 
   const session = sessions.get(sessionID);
@@ -58,25 +57,56 @@ app.post('/joinSession', (req, res) => {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // Validate that the gameID matches the session's gameID
   if (session.gameID !== gameID) {
-    return res.json(false);   // gameID does not match
+    return res.json(false);
+  }
+
+  // Prevent joining if the game has already started
+  if (session.gameStarted) {
+    return res.json(false);
   }
 
   if (session.playerIDs.includes(playerID)) {
-    return res.json(false);   // already in the session
+    return res.json(false);
   }
 
   session.playerIDs.push(playerID);
   res.json(true);
 });
 
-// 3. Get players – uses query parameter: ?sessionID=...
+// 3. Start game (new)
+app.post('/startGame', (req, res) => {
+  const { sessionID, playerID, playerList, gameState } = req.body;
+
+  if (!sessionID || !playerID || !playerList || gameState === undefined) {
+    return res.status(400).json({ error: 'Missing sessionID, playerID, playerList, or gameState' });
+  }
+
+  const session = sessions.get(sessionID);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  // Only the owner can start the game
+  if (session.ownerID !== playerID) {
+    return res.json(false);
+  }
+
+  // Update session data
+  session.playerIDs = playerList;                 // overwrite with provided list
+  session.currentPlayerIndex = 0;                 // first player in list
+  session.gameState = normalizeGameState(gameState);
+  session.gameStarted = true;                     // mark game as started
+
+  res.json(true);
+});
+
+// 4. Get players
 app.get('/getPlayers', (req, res) => {
   const { sessionID } = req.query;
 
   if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID query parameter' });
+    return res.status(400).json({ error: 'Missing sessionID' });
   }
 
   const session = sessions.get(sessionID);
@@ -87,17 +117,22 @@ app.get('/getPlayers', (req, res) => {
   res.json({ players: session.playerIDs });
 });
 
-// 4. Update game state – expects JSON body: { sessionID, playerID, gameState }
+// 5. Update game state (only if game started and it's the player's turn)
 app.post('/updateGameState', (req, res) => {
   const { sessionID, playerID, gameState } = req.body;
 
   if (!sessionID || !playerID || gameState === undefined) {
-    return res.status(400).json({ error: 'Missing sessionID, playerID, or gameState in request body' });
+    return res.status(400).json({ error: 'Missing sessionID, playerID, or gameState' });
   }
 
   const session = sessions.get(sessionID);
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
+  }
+
+  // Additional check: game must be started
+  if (!session.gameStarted) {
+    return res.json(false);
   }
 
   const currentPlayer = session.playerIDs[session.currentPlayerIndex];
@@ -111,12 +146,12 @@ app.post('/updateGameState', (req, res) => {
   res.json(true);
 });
 
-// 5. Get game state – uses query parameter: ?sessionID=...
+// 6. Get game state
 app.get('/getGameState', (req, res) => {
   const { sessionID } = req.query;
 
   if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID query parameter' });
+    return res.status(400).json({ error: 'Missing sessionID' });
   }
 
   const session = sessions.get(sessionID);
@@ -127,12 +162,12 @@ app.get('/getGameState', (req, res) => {
   res.json({ gameState: session.gameState });
 });
 
-// 6. End session – expects JSON body: { sessionID, playerID }
+// 7. End session
 app.post('/endSession', (req, res) => {
   const { sessionID, playerID } = req.body;
 
   if (!sessionID || !playerID) {
-    return res.status(400).json({ error: 'Missing sessionID or playerID in request body' });
+    return res.status(400).json({ error: 'Missing sessionID or playerID' });
   }
 
   const session = sessions.get(sessionID);
