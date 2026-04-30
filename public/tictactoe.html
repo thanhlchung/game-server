@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe - Multiplayer</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card-bg: #16213e;
+            --card-border: #0f3460;
+            --accent: #e94560;
+            --accent2: #533483;
+            --text: #eaeaea;
+            --text-muted: #a0a0b8;
+            --x-color: #ff6b6b;
+            --o-color: #74b9ff;
+            --cell-bg: #1e2a3a;
+            --cell-hover: #243447;
+            --win-glow: #ffd700;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --radius: 16px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse at 20% 20%, rgba(233, 68, 96, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(83, 52, 131, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(15, 52, 96, 0.06) 0%, transparent 70%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 32px 28px;
+            width: 100%;
+            max-width: 440px;
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition);
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 8px var(--win-glow), 0 0 20px rgba(255,215,0,0.3); }
+            50% { box-shadow: 0 0 18px var(--win-glow), 0 0 40px rgba(255,215,0,0.6); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--x-color), var(--o-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            letter-spacing: 0.03em;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .screen.active {
+            display: flex;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: -8px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 2px solid var(--card-border);
+            background: var(--cell-bg);
+            color: var(--text);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all var(--transition);
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(233,68,96,0.15);
+        }
+        input[type="text"]::placeholder { color: #555; }
+
+        .btn {
+            padding: 13px 20px;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.03em;
+            transition: all var(--transition);
+            font-family: inherit;
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(233,68,96,0.35);
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: #ff5a7a;
+            box-shadow: 0 6px 24px rgba(233,68,96,0.5);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: var(--accent2);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(83,52,131,0.35);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: #6a45c0;
+            box-shadow: 0 6px 24px rgba(83,52,131,0.5);
+            transform: translateY(-1px);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--card-border);
+            color: var(--text);
+        }
+        .btn-outline:hover:not(:disabled) {
+            border-color: var(--text-muted);
+            background: rgba(255,255,255,0.03);
+        }
+        .btn-sm {
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            border-radius: 8px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn-row .btn { flex: 1; min-width: 0; }
+
+        .session-id-display {
+            background: var(--cell-bg);
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border: 2px dashed var(--card-border);
+        }
+        .session-id-display .code {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+        }
+        .session-id-display .copy-btn { flex-shrink: 0; }
+
+        .player-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            list-style: none;
+        }
+        .player-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0.02em;
+        }
+        .player-tag.p1 { background: rgba(255,107,107,0.18); color: var(--x-color); border: 1px solid rgba(255,107,107,0.3); }
+        .player-tag.p2 { background: rgba(116,185,255,0.18); color: var(--o-color); border: 1px solid rgba(116,185,255,0.3); }
+        .player-tag.you { box-shadow: 0 0 12px currentColor; }
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-align: center;
+            animation: pulse 1.8s ease-in-out infinite;
+        }
+        .status-badge.waiting { background: rgba(255,193,7,0.18); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
+        .status-badge.your-turn { background: rgba(46,204,113,0.18); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); animation: none; }
+        .status-badge.opponent-turn { background: rgba(160,160,184,0.15); color: #a0a0b8; border: 1px solid rgba(160,160,184,0.25); animation: none; }
+        .status-badge.win { background: rgba(255,215,0,0.2); color: #ffd700; border: 1px solid rgba(255,215,0,0.4); animation: none; font-size: 0.95rem; }
+        .status-badge.draw-badge { background: rgba(160,160,184,0.15); color: #ccc; border: 1px solid rgba(160,160,184,0.3); animation: none; }
+
+        /* Board */
+        .board-wrapper { display: flex; justify-content: center; padding: 8px 0; }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            width: 100%;
+            max-width: 320px;
+            aspect-ratio: 1;
+        }
+        .cell {
+            background: var(--cell-bg);
+            border: 2px solid var(--card-border);
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: 800;
+            transition: all var(--transition);
+            position: relative;
+            aspect-ratio: 1;
+            min-width: 0;
+        }
+        .cell:hover:not(.taken):not(.game-over-cell) {
+            background: var(--cell-hover);
+            border-color: #3a5070;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+        .cell.taken { cursor: default; pointer-events: none; }
+        .cell.game-over-cell { cursor: default; pointer-events: none; }
+        .cell.x-mark { color: var(--x-color); animation: popIn 0.35s ease; }
+        .cell.o-mark { color: var(--o-color); animation: popIn 0.35s ease; }
+        .cell.winning-cell {
+            animation: glowPulse 1.2s ease-in-out infinite;
+            border-color: var(--win-glow) !important;
+            z-index: 2;
+            background: rgba(255,215,0,0.08);
+        }
+
+        .game-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .player-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .player-indicator .mark-icon { font-size: 1.3rem; font-weight: 800; }
+        .x-color { color: var(--x-color); }
+        .o-color { color: var(--o-color); }
+
+        .message {
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0.02em;
+        }
+        .message.error { background: rgba(231,76,60,0.15); color: #e74c3c; border: 1px solid rgba(231,76,60,0.3); }
+        .message.success { background: rgba(46,204,113,0.15); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); }
+        .message.info { background: rgba(116,185,255,0.12); color: #74b9ff; border: 1px solid rgba(116,185,255,0.25); }
+
+        .loading-dots::after { content: ''; animation: dots 1.5s steps(3, end) infinite; }
+        @keyframes dots {
+            0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } 100% { content: '.'; }
+        }
+
+        hr { border: none; border-top: 1px solid var(--card-border); margin: 4px 0; }
+        .hidden { display: none !important; }
+
+        @media (max-width: 480px) {
+            .container { padding: 20px 16px; border-radius: 12px; }
+            .board { gap: 5px; max-width: 270px; }
+            .cell { border-radius: 10px; font-size: 2.2rem; }
+            h1 { font-size: 1.5rem; }
+            .session-id-display .code { font-size: 1.5rem; }
+            .btn { padding: 11px 14px; font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="appContainer">
+        <h1>Tic-Tac-Toe</h1>
+        <p class="subtitle">Multiplayer · 3×3 Grid</p>
+
+        <!-- SETUP SCREEN (Game ID is hidden, always "tictactoe") -->
+        <div class="screen active" id="setupScreen">
+            <label for="playerNameInput">Your Name</label>
+            <input type="text" id="playerNameInput" placeholder="e.g. Mickey" maxlength="30" autocomplete="off">
+            <label for="sessionIDInput">Session ID <span style="font-weight:400;text-transform:none;letter-spacing:0;">(3 digits, for joining)</span></label>
+            <input type="text" id="sessionIDInput" placeholder="e.g. 042" maxlength="3" autocomplete="off" pattern="[0-9]{3}">
+            <div class="btn-row" style="margin-top:4px;">
+                <button class="btn btn-primary" id="btnCreate">🎮 Create Game</button>
+                <button class="btn btn-secondary" id="btnJoin">🔗 Join Game</button>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btnResumeOwner" style="margin-top:4px;">
+                🔄 Resume as Owner (after refresh)
+            </button>
+            <div id="setupMessage" class="message hidden"></div>
+        </div>
+
+        <!-- LOBBY SCREEN -->
+        <div class="screen" id="lobbyScreen">
+            <div class="session-id-display">
+                <span style="font-size:0.75rem;color:var(--text-muted);">Session</span>
+                <span class="code" id="lobbySessionID">---</span>
+                <button class="btn btn-outline btn-sm copy-btn" id="btnCopySession" title="Copy Session ID">📋 Copy</button>
+            </div>
+            <div>
+                <span style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Players</span>
+                <ul class="player-list" id="lobbyPlayerList" style="margin-top:6px;"></ul>
+            </div>
+            <div id="lobbyStatus" style="text-align:center;"></div>
+            <div id="lobbyMessage" class="message hidden"></div>
+            <div class="btn-row">
+                <button class="btn btn-primary hidden" id="btnStartGame">🚀 Start Game</button>
+                <button class="btn btn-outline btn-sm" id="btnLeaveLobby">← Leave</button>
+            </div>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div class="screen" id="gameScreen">
+            <div class="game-info">
+                <div class="player-indicator">
+                    <span class="mark-icon x-color">✕</span>
+                    <span id="gamePlayerX">—</span>
+                    <span style="font-size:0.7rem;color:var(--text-muted);">(X)</span>
+                </div>
+                <div id="gameStatusBadge" class="status-badge waiting">Loading...</div>
+                <div class="player-indicator">
+                    <span class="mark-icon o-color">○</span>
+                    <span id="gamePlayerO">—</span>
+                    <span style="font-size:0.7rem;color:var(--text-muted);">(O)</span>
+                </div>
+            </div>
+            <div class="board-wrapper">
+                <div class="board" id="gameBoard"></div>
+            </div>
+            <div id="gameMessage" class="message hidden"></div>
+            <div class="btn-row">
+                <button class="btn btn-outline btn-sm" id="btnLeaveGame">← Leave Game</button>
+                <button class="btn btn-outline btn-sm hidden" id="btnPlayAgain" style="color:var(--win-glow);border-color:rgba(255,215,0,0.4);">🔄 New Game?</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const API_BASE = 'https://game-server-xi6m.onrender.com';
+            const FIXED_GAME_ID = 'tictactoe'; // hidden from UI
+
+            // ── DOM refs ──────────────────────────────────
+            const $ = (sel) => document.querySelector(sel);
+            const setupScreen = $('#setupScreen');
+            const lobbyScreen = $('#lobbyScreen');
+            const gameScreen = $('#gameScreen');
+            const setupMessage = $('#setupMessage');
+            const lobbyMessage = $('#lobbyMessage');
+            const gameMessage = $('#gameMessage');
+            const lobbySessionID = $('#lobbySessionID');
+            const lobbyPlayerList = $('#lobbyPlayerList');
+            const lobbyStatus = $('#lobbyStatus');
+            const btnStartGame = $('#btnStartGame');
+            const gameBoard = $('#gameBoard');
+            const gameStatusBadge = $('#gameStatusBadge');
+            const gamePlayerX = $('#gamePlayerX');
+            const gamePlayerO = $('#gamePlayerO');
+            const btnPlayAgain = $('#btnPlayAgain');
+            const playerNameInput = $('#playerNameInput');
+            const sessionIDInput = $('#sessionIDInput');
+
+            // ── State ────────────────────────────────────
+            const state = {
+                screen: 'setup',
+                playerName: '',
+                gameID: FIXED_GAME_ID,
+                sessionID: '',
+                isOwner: false,
+                players: [],
+                gameData: null,
+                myMark: '',
+                myIndex: -1,
+                gameOver: false,
+                pollIntervals: [],
+                lastBoardHash: '',
+            };
+
+            function clearAllPolls() {
+                state.pollIntervals.forEach(id => clearInterval(id));
+                state.pollIntervals = [];
+            }
+
+            function showMessage(el, text, type) {
+                el.textContent = text;
+                el.className = 'message ' + type;
+                el.classList.remove('hidden');
+            }
+            function hideMessage(el) {
+                el.classList.add('hidden');
+                el.textContent = '';
+            }
+
+            function showScreen(name) {
+                clearAllPolls();
+                hideMessage(setupMessage);
+                hideMessage(lobbyMessage);
+                hideMessage(gameMessage);
+                [setupScreen, lobbyScreen, gameScreen].forEach(s => s.classList.remove('active'));
+                state.screen = name;
+                switch (name) {
+                    case 'setup': setupScreen.classList.add('active'); break;
+                    case 'lobby': lobbyScreen.classList.add('active'); break;
+                    case 'game': gameScreen.classList.add('active'); break;
+                }
+            }
+
+            function resetGameState() {
+                state.gameData = null;
+                state.myMark = '';
+                state.myIndex = -1;
+                state.gameOver = false;
+                state.lastBoardHash = '';
+                state.players = [];
+                btnPlayAgain.classList.add('hidden');
+                gameBoard.innerHTML = '';
+                gamePlayerX.textContent = '—';
+                gamePlayerO.textContent = '—';
+                gameStatusBadge.textContent = 'Loading...';
+                gameStatusBadge.className = 'status-badge waiting';
+            }
+
+            // ── API wrappers ─────────────────────────────
+            async function apiCall(method, path, body = null) {
+                const url = API_BASE + path;
+                const options = { method, headers: { 'Content-Type': 'application/json' } };
+                if (body) options.body = JSON.stringify(body);
+                const res = await fetch(url, options);
+                const data = await res.json().catch(() => null);
+                if (!res.ok && res.status !== 404) {
+                    const errMsg = (data && data.error) ? data.error : `HTTP ${res.status}`;
+                    throw new Error(errMsg);
+                }
+                return { status: res.status, data };
+            }
+
+            async function apiCreateSession(gameID, playerID, gameStateStr) {
+                return apiCall('POST', '/createSession', { gameID, playerID, gameState: gameStateStr });
+            }
+            async function apiJoinSession(gameID, sessionID, playerID) {
+                return apiCall('POST', '/joinSession', { gameID, sessionID, playerID });
+            }
+            async function apiStartGame(sessionID, playerID, playerList, gameStateStr) {
+                return apiCall('POST', '/startGame', { sessionID, playerID, playerList, gameState: gameStateStr });
+            }
+            async function apiGetPlayers(sessionID) {
+                return apiCall('GET', `/getPlayers?sessionID=${encodeURIComponent(sessionID)}`);
+            }
+            async function apiGetGameState(sessionID) {
+                return apiCall('GET', `/getGameState?sessionID=${encodeURIComponent(sessionID)}`);
+            }
+            async function apiUpdateGameState(sessionID, playerID, gameStateStr) {
+                return apiCall('POST', '/updateGameState', { sessionID, playerID, gameState: gameStateStr });
+            }
+            async function apiEndSession(sessionID, playerID) {
+                return apiCall('POST', '/endSession', { sessionID, playerID });
+            }
+
+            // ── Game Logic ───────────────────────────────
+            function getInitialGameState(players) {
+                return {
+                    status: 'playing',
+                    board: ['.', '.', '.', '.', '.', '.', '.', '.', '.'],
+                    players: players.map(p => p.toLowerCase()),
+                    currentTurn: players[0] ? players[0].toLowerCase() : '',
+                    winner: null,
+                    draw: false,
+                };
+            }
+            function getWaitingGameState() {
+                return { status: 'waiting' };
+            }
+            function boardHash(board) { return board.join(''); }
+
+            function checkWinner(board, players) {
+                const lines = [
+                    [0,1,2],[3,4,5],[6,7,8],
+                    [0,3,6],[1,4,7],[2,5,8],
+                    [0,4,8],[2,4,6]
+                ];
+                const marks = ['X','O'];
+                for (const line of lines) {
+                    const [a,b,c] = line;
+                    for (let i = 0; i < Math.min(players.length,2); i++) {
+                        const mark = marks[i];
+                        if (board[a] === mark && board[b] === mark && board[c] === mark) {
+                            return { winner: players[i], winningLine: line, mark };
+                        }
+                    }
+                }
+                if (board.every(cell => cell !== '.')) {
+                    return { winner: null, winningLine: null, mark: null, draw: true };
+                }
+                return null;
+            }
+
+            function getMarkForPlayer(players, playerName) {
+                const idx = players.findIndex(p => p.toLowerCase() === playerName.toLowerCase());
+                return idx === 0 ? 'X' : (idx === 1 ? 'O' : null);
+            }
+            function getPlayerIndex(players, playerName) {
+                return players.findIndex(p => p.toLowerCase() === playerName.toLowerCase());
+            }
+
+            // ── Render ───────────────────────────────────
+            function renderBoard() {
+                if (!state.gameData || !state.gameData.board) {
+                    gameBoard.innerHTML = '';
+                    for (let i = 0; i < 9; i++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.index = i;
+                        cell.textContent = '';
+                        gameBoard.appendChild(cell);
+                    }
+                    return;
+                }
+                const board = state.gameData.board;
+                const winnerInfo = checkWinner(board, state.gameData.players || []);
+                const winningCells = winnerInfo && winnerInfo.winningLine ? winnerInfo.winningLine : [];
+                const isGameOver = state.gameOver || (winnerInfo && (winnerInfo.winner || winnerInfo.draw));
+
+                gameBoard.innerHTML = '';
+                for (let i = 0; i < 9; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.index = i;
+                    const val = board[i];
+                    if (val === 'X') {
+                        cell.textContent = '✕';
+                        cell.classList.add('taken', 'x-mark');
+                    } else if (val === 'O') {
+                        cell.textContent = '○';
+                        cell.classList.add('taken', 'o-mark');
+                    } else {
+                        cell.textContent = '';
+                    }
+                    if (winningCells.includes(i)) cell.classList.add('winning-cell');
+                    if (isGameOver) cell.classList.add('game-over-cell');
+                    if (!val || val === '.') {
+                        cell.addEventListener('click', () => handleCellClick(i));
+                    }
+                    gameBoard.appendChild(cell);
+                }
+            }
+
+            function updateGameUI() {
+                if (!state.gameData) return;
+                const gd = state.gameData;
+                const players = gd.players || [];
+                const currentTurn = gd.currentTurn || '';
+                if (players.length >= 1) gamePlayerX.textContent = players[0];
+                if (players.length >= 2) gamePlayerO.textContent = players[1];
+                const myName = state.playerName.toLowerCase();
+                const isMyTurn = currentTurn === myName;
+                const winnerInfo = checkWinner(gd.board || [], players);
+                const isGameOver = !!(winnerInfo && (winnerInfo.winner || winnerInfo.draw));
+                state.gameOver = isGameOver;
+
+                if (isGameOver && winnerInfo && winnerInfo.winner) {
+                    const winnerName = winnerInfo.winner;
+                    const isMe = winnerName.toLowerCase() === myName;
+                    gameStatusBadge.textContent = isMe ? '🎉 You Won!' : `🏆 ${winnerName} Wins!`;
+                    gameStatusBadge.className = 'status-badge win';
+                } else if (isGameOver && winnerInfo && winnerInfo.draw) {
+                    gameStatusBadge.textContent = '🤝 Draw!';
+                    gameStatusBadge.className = 'status-badge draw-badge';
+                } else if (isMyTurn) {
+                    gameStatusBadge.textContent = 'Your Turn';
+                    gameStatusBadge.className = 'status-badge your-turn';
+                } else if (currentTurn && players.includes(currentTurn)) {
+                    gameStatusBadge.textContent = `${currentTurn}'s Turn`;
+                    gameStatusBadge.className = 'status-badge opponent-turn';
+                } else {
+                    gameStatusBadge.textContent = 'Waiting...';
+                    gameStatusBadge.className = 'status-badge waiting';
+                }
+                if (isGameOver) btnPlayAgain.classList.remove('hidden');
+                else btnPlayAgain.classList.add('hidden');
+                renderBoard();
+            }
+
+            function renderLobbyPlayers() {
+                lobbyPlayerList.innerHTML = '';
+                const myName = state.playerName.toLowerCase();
+                state.players.forEach((p, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'player-tag';
+                    if (i === 0) li.classList.add('p1');
+                    if (i === 1) li.classList.add('p2');
+                    if (p.toLowerCase() === myName) li.classList.add('you');
+                    const dot = document.createElement('span');
+                    dot.className = 'dot';
+                    li.appendChild(dot);
+                    li.appendChild(document.createTextNode(p + (p.toLowerCase() === myName ? ' (you)' : '')));
+                    if (i === 0) {
+                        const hostBadge = document.createElement('span');
+                        hostBadge.textContent = 'Host';
+                        hostBadge.style.cssText = 'font-size:0.65rem;opacity:0.7;margin-left:2px;';
+                        li.appendChild(hostBadge);
+                    }
+                    lobbyPlayerList.appendChild(li);
+                });
+                if (state.isOwner && state.players.length >= 2) {
+                    btnStartGame.classList.remove('hidden');
+                } else if (state.isOwner) {
+                    btnStartGame.classList.add('hidden');
+                    lobbyStatus.innerHTML = '<span class="status-badge waiting">Waiting for opponent to join...</span>';
+                } else {
+                    btnStartGame.classList.add('hidden');
+                    lobbyStatus.innerHTML = '<span class="status-badge waiting">Waiting for host to start the game...</span>';
+                }
+                if (state.players.length >= 2 && !state.isOwner) {
+                    lobbyStatus.innerHTML = '<span class="status-badge waiting" style="animation:none;">✅ Ready! Waiting for host to start...</span>';
+                }
+            }
+
+            // ── Polling ──────────────────────────────────
+            function startLobbyPolling() {
+                clearAllPolls();
+                const pollPlayers = async () => {
+                    try {
+                        const { status, data } = await apiGetPlayers(state.sessionID);
+                        if (status === 200 && data && data.players) {
+                            state.players = data.players;
+                            renderLobbyPlayers();
+                        } else if (status === 404) {
+                            showMessage(lobbyMessage, 'Session not found on server.', 'error');
+                            clearAllPolls();
+                        }
+                    } catch (e) { console.warn('Poll players error:', e.message); }
+                };
+                const pollGameStateForStart = async () => {
+                    try {
+                        const { status, data } = await apiGetGameState(state.sessionID);
+                        if (status === 200 && data && data.gameState) {
+                            const gs = typeof data.gameState === 'string' ? JSON.parse(data.gameState) : data.gameState;
+                            if (gs && gs.status === 'playing') {
+                                state.gameData = gs;
+                                state.myIndex = getPlayerIndex(gs.players || [], state.playerName);
+                                state.myMark = getMarkForPlayer(gs.players || [], state.playerName);
+                                state.players = gs.players || [];
+                                state.lastBoardHash = boardHash(gs.board || []);
+                                clearAllPolls();
+                                showScreen('game');
+                                updateGameUI();
+                                startGamePolling();
+                                return;
+                            }
+                        }
+                    } catch (e) { console.warn('Poll game state error:', e.message); }
+                };
+                pollPlayers();
+                const id1 = setInterval(pollPlayers, 2000);
+                const id2 = setInterval(pollGameStateForStart, 2000);
+                state.pollIntervals.push(id1, id2);
+            }
+
+            function startGamePolling() {
+                clearAllPolls();
+                const poll = async () => {
+                    if (state.gameOver) return;
+                    try {
+                        const { status, data } = await apiGetGameState(state.sessionID);
+                        if (status === 200 && data && data.gameState) {
+                            const gs = typeof data.gameState === 'string' ? JSON.parse(data.gameState) : data.gameState;
+                            if (gs) {
+                                const newHash = boardHash(gs.board || []);
+                                if (newHash !== state.lastBoardHash || JSON.stringify(gs.players) !== JSON.stringify(state.gameData?.players) || gs.currentTurn !== state.gameData?.currentTurn || gs.winner !== state.gameData?.winner || gs.draw !== state.gameData?.draw) {
+                                    state.gameData = gs;
+                                    state.lastBoardHash = newHash;
+                                    state.players = gs.players || [];
+                                    state.myIndex = getPlayerIndex(state.players, state.playerName);
+                                    state.myMark = getMarkForPlayer(state.players, state.playerName);
+                                    updateGameUI();
+                                    const wi = checkWinner(gs.board || [], gs.players || []);
+                                    if (wi && (wi.winner || wi.draw)) {
+                                        state.gameOver = true;
+                                        updateGameUI();
+                                    }
+                                }
+                            }
+                        } else if (status === 404) {
+                            showMessage(gameMessage, 'Session ended or not found.', 'error');
+                            state.gameOver = true;
+                            updateGameUI();
+                            clearAllPolls();
+                        }
+                    } catch (e) { console.warn('Poll game state error:', e.message); }
+                };
+                poll();
+                const id = setInterval(poll, 1500);
+                state.pollIntervals.push(id);
+            }
+
+            // ── Cell click ──────────────────────────────
+            async function handleCellClick(index) {
+                if (state.gameOver) return;
+                if (!state.gameData || !state.gameData.board) return;
+                if (state.gameData.board[index] !== '.') return;
+                const myName = state.playerName.toLowerCase();
+                const currentTurn = (state.gameData.currentTurn || '').toLowerCase();
+                if (myName !== currentTurn) {
+                    showMessage(gameMessage, "It's not your turn!", 'info');
+                    setTimeout(() => hideMessage(gameMessage), 2500);
+                    return;
+                }
+                if (!state.myMark) {
+                    showMessage(gameMessage, 'Could not determine your mark.', 'error');
+                    return;
+                }
+                hideMessage(gameMessage);
+                const newBoard = [...state.gameData.board];
+                newBoard[index] = state.myMark;
+                const players = state.gameData.players || [];
+                const nextPlayerIndex = (state.myIndex + 1) % players.length;
+                const nextPlayer = players[nextPlayerIndex] || players[0];
+                const newGameData = { ...state.gameData, board: newBoard, currentTurn: nextPlayer };
+                const winnerInfo = checkWinner(newBoard, players);
+                if (winnerInfo) {
+                    if (winnerInfo.winner) { newGameData.winner = winnerInfo.winner; newGameData.currentTurn = ''; }
+                    else if (winnerInfo.draw) { newGameData.draw = true; newGameData.currentTurn = ''; }
+                }
+                const gameStateStr = JSON.stringify(newGameData);
+                try {
+                    const { status, data } = await apiUpdateGameState(state.sessionID, state.playerName, gameStateStr);
+                    if (status === 200 && data === true) {
+                        state.gameData = newGameData;
+                        state.lastBoardHash = boardHash(newBoard);
+                        if (winnerInfo && (winnerInfo.winner || winnerInfo.draw)) state.gameOver = true;
+                        updateGameUI();
+                    } else {
+                        showMessage(gameMessage, 'Move rejected. It may not be your turn, or the game hasn\'t started.', 'error');
+                        setTimeout(() => hideMessage(gameMessage), 3000);
+                        await refreshGameState();
+                    }
+                } catch (e) {
+                    showMessage(gameMessage, 'Network error: ' + e.message, 'error');
+                    setTimeout(() => hideMessage(gameMessage), 3000);
+                    await refreshGameState();
+                }
+            }
+
+            async function refreshGameState() {
+                try {
+                    const { status, data } = await apiGetGameState(state.sessionID);
+                    if (status === 200 && data && data.gameState) {
+                        const gs = typeof data.gameState === 'string' ? JSON.parse(data.gameState) : data.gameState;
+                        if (gs) {
+                            state.gameData = gs;
+                            state.lastBoardHash = boardHash(gs.board || []);
+                            state.players = gs.players || [];
+                            state.myIndex = getPlayerIndex(state.players, state.playerName);
+                            state.myMark = getMarkForPlayer(state.players, state.playerName);
+                            const wi = checkWinner(gs.board || [], gs.players || []);
+                            if (wi && (wi.winner || wi.draw)) state.gameOver = true;
+                            updateGameUI();
+                        }
+                    }
+                } catch (e) { console.warn('Refresh game state error:', e.message); }
+            }
+
+            // ── Button Handlers ─────────────────────────
+            document.getElementById('btnCreate').addEventListener('click', async () => {
+                const name = playerNameInput.value.trim();
+                if (!name) { showMessage(setupMessage, 'Please enter your name.', 'error'); return; }
+                hideMessage(setupMessage);
+                state.playerName = name;
+                state.gameID = FIXED_GAME_ID;
+                state.isOwner = true;
+                state.sessionID = '';
+                state.players = [name.toLowerCase()];
+                try {
+                    const waitingGS = JSON.stringify(getWaitingGameState());
+                    const { status, data } = await apiCreateSession(FIXED_GAME_ID, name, waitingGS);
+                    if (status === 200 && data && data.sessionID) {
+                        state.sessionID = data.sessionID;
+                        lobbySessionID.textContent = data.sessionID;
+                        resetGameState();
+                        showScreen('lobby');
+                        renderLobbyPlayers();
+                        lobbyStatus.innerHTML = '<span class="status-badge waiting">Waiting for opponent to join...</span>';
+                        startLobbyPolling();
+                    } else {
+                        showMessage(setupMessage, 'Failed to create session. Try again.', 'error');
+                    }
+                } catch (e) { showMessage(setupMessage, 'Error: ' + e.message, 'error'); }
+            });
+
+            document.getElementById('btnJoin').addEventListener('click', async () => {
+                const name = playerNameInput.value.trim();
+                const sessionID = sessionIDInput.value.trim();
+                if (!name) { showMessage(setupMessage, 'Please enter your name.', 'error'); return; }
+                if (!sessionID || !/^\d{3}$/.test(sessionID)) { showMessage(setupMessage, 'Please enter a valid 3-digit Session ID.', 'error'); return; }
+                hideMessage(setupMessage);
+                state.playerName = name;
+                state.gameID = FIXED_GAME_ID;
+                state.isOwner = false;
+                state.sessionID = sessionID;
+                try {
+                    const { status, data } = await apiJoinSession(FIXED_GAME_ID, sessionID, name);
+                    if (status === 200 && data === true) {
+                        lobbySessionID.textContent = sessionID;
+                        resetGameState();
+                        showScreen('lobby');
+                        lobbyStatus.innerHTML = '<span class="status-badge waiting">Waiting for host to start the game...</span>';
+                        startLobbyPolling();
+                    } else if (status === 200 && data === false) {
+                        showMessage(setupMessage, 'Could not join. You may already be in the session, the game has started, or the Game ID doesn\'t match.', 'error');
+                    } else if (status === 404) {
+                        showMessage(setupMessage, 'Session not found. Check the Session ID.', 'error');
+                    } else {
+                        showMessage(setupMessage, 'Unexpected response. Try again.', 'error');
+                    }
+                } catch (e) { showMessage(setupMessage, 'Error: ' + e.message, 'error'); }
+            });
+
+            document.getElementById('btnResumeOwner').addEventListener('click', async () => {
+                const name = playerNameInput.value.trim();
+                const sessionID = sessionIDInput.value.trim();
+                if (!name) { showMessage(setupMessage, 'Please enter your name.', 'error'); return; }
+                if (!sessionID || !/^\d{3}$/.test(sessionID)) { showMessage(setupMessage, 'Please enter the 3-digit Session ID to resume.', 'error'); return; }
+                hideMessage(setupMessage);
+                state.playerName = name;
+                state.gameID = FIXED_GAME_ID;
+                state.isOwner = true;
+                state.sessionID = sessionID;
+                lobbySessionID.textContent = sessionID;
+                resetGameState();
+                try {
+                    const { status } = await apiGetPlayers(sessionID);
+                    if (status === 404) { showMessage(setupMessage, 'Session not found.', 'error'); return; }
+                    const gsRes = await apiGetGameState(sessionID);
+                    if (gsRes.status === 200 && gsRes.data && gsRes.data.gameState) {
+                        const gs = typeof gsRes.data.gameState === 'string' ? JSON.parse(gsRes.data.gameState) : gsRes.data.gameState;
+                        if (gs && gs.status === 'playing') {
+                            state.gameData = gs;
+                            state.players = gs.players || [];
+                            state.myIndex = getPlayerIndex(state.players, name);
+                            state.myMark = getMarkForPlayer(state.players, name);
+                            state.lastBoardHash = boardHash(gs.board || []);
+                            const wi = checkWinner(gs.board || [], gs.players || []);
+                            if (wi && (wi.winner || wi.draw)) state.gameOver = true;
+                            showScreen('game');
+                            updateGameUI();
+                            startGamePolling();
+                            return;
+                        }
+                    }
+                    showScreen('lobby');
+                    renderLobbyPlayers();
+                    lobbyStatus.innerHTML = '<span class="status-badge waiting">Resumed as owner. Waiting for players...</span>';
+                    startLobbyPolling();
+                } catch (e) { showMessage(setupMessage, 'Error: ' + e.message, 'error'); }
+            });
+
+            btnStartGame.addEventListener('click', async () => {
+                if (!state.isOwner || state.players.length < 2) return;
+                hideMessage(lobbyMessage);
+                const playerList = [...state.players];
+                const initialGS = getInitialGameState(playerList);
+                const gameStateStr = JSON.stringify(initialGS);
+                try {
+                    const { status, data } = await apiStartGame(state.sessionID, state.playerName, playerList, gameStateStr);
+                    if (status === 200 && data === true) {
+                        state.gameData = initialGS;
+                        state.players = playerList;
+                        state.myIndex = getPlayerIndex(playerList, state.playerName);
+                        state.myMark = getMarkForPlayer(playerList, state.playerName);
+                        state.lastBoardHash = boardHash(initialGS.board);
+                        state.gameOver = false;
+                        clearAllPolls();
+                        showScreen('game');
+                        updateGameUI();
+                        startGamePolling();
+                    } else {
+                        showMessage(lobbyMessage, 'Could not start game. Ensure you are the owner.', 'error');
+                    }
+                } catch (e) { showMessage(lobbyMessage, 'Error: ' + e.message, 'error'); }
+            });
+
+            document.getElementById('btnCopySession').addEventListener('click', () => {
+                const code = state.sessionID;
+                if (!code) return;
+                navigator.clipboard.writeText(code).then(() => {
+                    const btn = document.getElementById('btnCopySession');
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    btn.style.borderColor = '#2ecc71';
+                    btn.style.color = '#2ecc71';
+                    setTimeout(() => { btn.textContent = orig; btn.style.borderColor = ''; btn.style.color = ''; }, 1800);
+                }).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = code;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    const btn = document.getElementById('btnCopySession');
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => { btn.textContent = '📋 Copy'; }, 1800);
+                });
+            });
+
+            document.getElementById('btnLeaveLobby').addEventListener('click', () => {
+                clearAllPolls();
+                resetGameState();
+                state.sessionID = '';
+                state.isOwner = false;
+                state.players = [];
+                showScreen('setup');
+            });
+            document.getElementById('btnLeaveGame').addEventListener('click', () => {
+                clearAllPolls();
+                resetGameState();
+                state.sessionID = '';
+                state.isOwner = false;
+                state.players = [];
+                showScreen('setup');
+            });
+            btnPlayAgain.addEventListener('click', () => {
+                clearAllPolls();
+                resetGameState();
+                if (state.isOwner && state.sessionID) {
+                    showScreen('lobby');
+                    lobbyStatus.innerHTML = '<span class="status-badge waiting">Game over. Start a new game or share the session for a rematch.</span>';
+                    startLobbyPolling();
+                } else {
+                    state.sessionID = '';
+                    state.isOwner = false;
+                    state.players = [];
+                    showScreen('setup');
+                }
+            });
+
+            sessionIDInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);
+            });
+
+            showScreen('setup');
+            playerNameInput.focus();
+            console.log('🎮 Tic-Tac-Toe ready (Game ID hidden)');
+        })();
+    </script>
+</body>
+</html>
