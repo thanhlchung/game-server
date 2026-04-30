@@ -23,11 +23,11 @@
     </style>
 </head>
 <body>
-    <h1>ðŸŽ® Game Server Tester</h1>
+    <h1>🎮 Game Server Tester</h1>
 
     <!-- Keep track of the last used session ID -->
     <div id="currentSession" style="text-align:center; margin-bottom:10px; opacity:0.8;">
-        Session: <span id="sessionIdDisplay">â€”</span>
+        Session: <span id="sessionIdDisplay">—</span>
     </div>
 
     <!-- 1. Create Session -->
@@ -46,6 +46,8 @@
     <!-- 2. Join Session -->
     <div class="section">
         <h2>2. Join Session</h2>
+        <label>Game ID</label>
+        <input id="joinGameId" placeholder="tictactoe" value="tictactoe">
         <label>Session ID</label>
         <input id="joinSessionId" placeholder="123">
         <label>Player ID</label>
@@ -96,7 +98,7 @@
         <div class="result" id="endResult"></div>
     </div>
 
-    <div class="note">ðŸ”— Server: https://game-server-xi6m.onrender.com</div>
+    <div class="note">🔗 Server: https://game-server-xi6m.onrender.com</div>
 
     <script>
         const BASE_URL = 'https://game-server-xi6m.onrender.com';
@@ -108,8 +110,7 @@
         }
 
         function setCurrentSession(sessionId) {
-            document.getElementById('sessionIdDisplay').textContent = sessionId || 'â€”';
-            // Pre-fill other session ID fields for convenience
+            document.getElementById('sessionIdDisplay').textContent = sessionId || '—';
             document.getElementById('joinSessionId').value = sessionId || '';
             document.getElementById('playersSessionId').value = sessionId || '';
             document.getElementById('updateSessionId').value = sessionId || '';
@@ -118,7 +119,6 @@
         }
 
         function parseGameStateString(text) {
-            // Try to parse as JSON first, otherwise return as string
             try {
                 return JSON.parse(text);
             } catch {
@@ -139,20 +139,25 @@
                 });
                 const data = await res.json();
                 showResult('createResult', data, !res.ok);
-                if (data.sessionID) setCurrentSession(data.sessionID);
+                if (data.sessionID) {
+                    setCurrentSession(data.sessionID);
+                    // Optionally set the gameID in the join section
+                    document.getElementById('joinGameId').value = gameId;
+                }
             } catch (err) {
                 showResult('createResult', 'Network error: ' + err.message, true);
             }
         }
 
         async function apiJoinSession() {
+            const gameId = document.getElementById('joinGameId').value;
             const sessionId = document.getElementById('joinSessionId').value;
             const playerId = document.getElementById('joinPlayerId').value;
             try {
                 const res = await fetch(`${BASE_URL}/joinSession`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionID: sessionId, playerID: playerId })
+                    body: JSON.stringify({ gameID: gameId, sessionID: sessionId, playerID: playerId })
                 });
                 const data = await res.json();
                 showResult('joinResult', data, !res.ok);

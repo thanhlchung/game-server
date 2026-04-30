@@ -45,12 +45,12 @@ app.post('/createSession', (req, res) => {
   res.json({ sessionID });
 });
 
-// 2. Join session – expects JSON body: { sessionID, playerID }
+// 2. Join session – expects JSON body: { gameID, sessionID, playerID }
 app.post('/joinSession', (req, res) => {
-  const { sessionID, playerID } = req.body;
+  const { gameID, sessionID, playerID } = req.body;
 
-  if (!sessionID || !playerID) {
-    return res.status(400).json({ error: 'Missing sessionID or playerID in request body' });
+  if (!gameID || !sessionID || !playerID) {
+    return res.status(400).json({ error: 'Missing gameID, sessionID, or playerID in request body' });
   }
 
   const session = sessions.get(sessionID);
@@ -58,8 +58,13 @@ app.post('/joinSession', (req, res) => {
     return res.status(404).json({ error: 'Session not found' });
   }
 
+  // Validate that the gameID matches the session's gameID
+  if (session.gameID !== gameID) {
+    return res.json(false);   // gameID does not match
+  }
+
   if (session.playerIDs.includes(playerID)) {
-    return res.json(false);
+    return res.json(false);   // already in the session
   }
 
   session.playerIDs.push(playerID);
