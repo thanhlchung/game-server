@@ -51,6 +51,14 @@
     .section h3 {
       font-size: 0.8rem; margin: 0 0 5px 0; color: #a0a0b0; display: flex; align-items: center; gap: 5px;
     }
+    .section-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .section-header button {
+      background: none; border: none; color: #a0a0b0; font-size: 1rem; cursor: pointer;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .section-header button:hover { background: #0f3460; }
     .other-players { display: flex; flex-wrap: wrap; gap: 5px; }
     .player-tag {
       background: #0f3460; border-radius: 15px; padding: 4px 10px; font-size: 0.7rem;
@@ -59,14 +67,14 @@
     .play-area {
       display: flex; gap: 3px; min-height: 40px; align-items: flex-start;
       flex-wrap: nowrap; overflow-x: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #e94560 #1a1a2e;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
     }
     .play-area::-webkit-scrollbar { height: 6px; }
     .play-area::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
     .play-area::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
     .play-area.overlap .played-card { margin-left: -16px; }
     .play-area.overlap .played-card:first-child { margin-left: 0; }
+
     .deck-pile { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
     .deck-icon {
       width: 50px; height: 70px;
@@ -77,8 +85,7 @@
     .hand-container {
       display: flex; align-items: flex-end; min-height: 60px; padding: 5px 0; position: relative;
       flex-wrap: nowrap; overflow-x: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #e94560 #1a1a2e;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
     }
     .hand-container::-webkit-scrollbar { height: 6px; }
     .hand-container::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
@@ -91,15 +98,19 @@
     }
     .hand-card:first-child { margin-left: 0; }
     .hand-card.red { color: #e94560; }
+    .hand-container.no-overlap .hand-card { margin-left: 2px; }
+    .hand-container.no-overlap .hand-card:first-child { margin-left: 0; }
+
     .staging-area {
       display: flex; gap: 5px; min-height: 65px; align-items: center;
       flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #e94560 #1a1a2e;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
     }
     .staging-area::-webkit-scrollbar { height: 6px; }
     .staging-area::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
     .staging-area::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+    .staging-area.overlap .staged-card { margin-left: -16px; }
+    .staging-area.overlap .staged-card:first-child { margin-left: 0; }
     .staged-card {
       width: 42px; height: 58px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
       font-weight: bold; font-size: 0.9rem; position: relative; background: #ffffff; border: 2px solid #f0a500;
@@ -114,6 +125,8 @@
       width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
     .my-played { display: flex; gap: 3px; flex-wrap: wrap; }
+    .my-played.overlap .played-card { margin-left: -16px; }
+    .my-played.overlap .played-card:first-child { margin-left: 0; }
     .played-card {
       width: 42px; height: 58px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
       font-weight: bold; font-size: 0.9rem; background: #ffffff; border: 2px solid #aaa; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -169,13 +182,8 @@
     .toggle-switch {
       position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
     }
-    .toggle-switch input:disabled + .toggle-slider {
-      opacity: 0.4;
-      pointer-events: none;
-    }
-    .toggle-switch input:disabled ~ .toggle-label {
-      opacity: 0.4;
-    }
+    .toggle-switch input:disabled + .toggle-slider { opacity: 0.4; pointer-events: none; }
+    .toggle-switch input:disabled ~ .toggle-label { opacity: 0.4; }
     .toggle-switch input { display: none; }
     .toggle-slider {
       width: 42px; height: 24px; background: #0f3460; border-radius: 12px; border: 1px solid #e94560; position: relative; transition: 0.3s;
@@ -187,7 +195,7 @@
     .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
     .toggle-label { font-size: 0.8rem; min-width: 35px; }
 
-    /* Stepper styling */
+    /* Stepper */
     .stepper {
       display: flex; align-items: center; gap: 0;
     }
@@ -230,7 +238,7 @@
     <input type="text" id="joinName" placeholder="Your name">
     <input type="text" id="joinSessionId" placeholder="Session ID (join)">
     <button id="joinBtn" class="primary" disabled>Join</button>
-    <button id="createBtn" class="primary" disabled>Create New Game</button>
+    <button id="createBtn" class="primary">Create New Game</button>
   </div>
 
   <div id="setupPanel" style="display:none;" class="setup-panel">
@@ -273,6 +281,9 @@
       <label><input type="checkbox" id="groupPlayAreaCb"> 👥 Group by player</label>
       <label><input type="checkbox" id="allowFlipPlayedCb"> 🔄 Flip played (tap)</label>
       <label><input type="checkbox" id="overlapPlayAreaCb"> 🀄️ Overlap cards in play area</label>
+      <label><input type="checkbox" id="overlapStagingCb"> 🀄️ Overlap cards in staging</label>
+      <label><input type="checkbox" id="overlapHandCb" checked> 🀄️ Overlap cards in your hand</label>
+      <label><input type="checkbox" id="overlapPlayedCb"> 🀄️ Overlap cards in your played</label>
     </div>
     <button id="startGameBtn" class="primary" style="width:100%; margin-top:10px;">▶ Start Game</button>
   </div>
@@ -284,7 +295,10 @@
         <div id="otherPlayers" class="other-players"></div>
       </div>
       <div class="section">
-        <h3>🃏 Play Area</h3>
+        <div class="section-header">
+          <h3>🃏 Play Area</h3>
+          <button id="toggleOverlapPlayArea" title="Toggle overlap">↔️</button>
+        </div>
         <div class="scroll-container">
           <div id="playArea" class="play-area"></div>
           <span class="scroll-arrow left">◀</span>
@@ -298,7 +312,10 @@
         <button id="passBtn" class="action-btn" disabled>⏭️ Pass</button>
       </div>
       <div class="section">
-        <h3>📦 Staging <span id="actionModeLabel" style="font-size:0.6rem;"></span></h3>
+        <div class="section-header">
+          <h3>📦 Staging <span id="actionModeLabel" style="font-size:0.6rem;"></span></h3>
+          <button id="toggleOverlapStaging" title="Toggle overlap">↔️</button>
+        </div>
         <div class="scroll-container">
           <div id="stagingArea" class="staging-area"></div>
           <span class="scroll-arrow left">◀</span>
@@ -306,7 +323,10 @@
         </div>
       </div>
       <div class="section">
-        <h3>🤚 Your Hand <span style="font-size:0.6rem;">(drag to reorder)</span></h3>
+        <div class="section-header">
+          <h3>🤚 Your Hand <span style="font-size:0.6rem;">(drag to reorder)</span></h3>
+          <button id="toggleOverlapHand" title="Toggle overlap">↔️</button>
+        </div>
         <div class="scroll-container">
           <div id="myHand" class="hand-container"></div>
           <span class="scroll-arrow left">◀</span>
@@ -314,7 +334,10 @@
         </div>
       </div>
       <div class="section">
-        <h3>📤 Your Played</h3>
+        <div class="section-header">
+          <h3>📤 Your Played</h3>
+          <button id="toggleOverlapPlayed" title="Toggle overlap">↔️</button>
+        </div>
         <div id="myPlayed" class="my-played"></div>
       </div>
     </div>
@@ -335,6 +358,12 @@ let autoRefreshInterval = null;
 let setupButtonsUsed = {};
 let cardsPerPlayer = 7;
 
+// Local overlap toggles (per user, not synced)
+let overlapPlayAreaLocal = false;
+let overlapStagingLocal = false;
+let overlapHandLocal = true;   // default true
+let overlapPlayedLocal = false;
+
 const $ = id => document.getElementById(id);
 const joinPanel = $('joinPanel'), setupPanel = $('setupPanel'), gameBoard = $('gameBoard');
 const sessionDisplay = $('sessionDisplay'), playerDisplay = $('playerDisplay'), ownerBadge = $('ownerBadge'), statusMessage = $('statusMessage');
@@ -348,6 +377,29 @@ const joinBtn = $('joinBtn'), createBtn = $('createBtn');
 const stepperMinus = $('stepperMinus'), stepperPlus = $('stepperPlus'), stepperValue = $('stepperValue');
 const pokerOrderToggle = $('pokerOrderToggle');
 const pokerOrderToggleLabel = $('pokerOrderToggleLabel');
+const toggleOverlapPlayArea = $('toggleOverlapPlayArea');
+const toggleOverlapStaging = $('toggleOverlapStaging');
+const toggleOverlapHand = $('toggleOverlapHand');
+const toggleOverlapPlayed = $('toggleOverlapPlayed');
+
+// Toggle event listeners (will be attached after DOM)
+// These update the local toggle variables and re-render
+toggleOverlapPlayArea.onclick = () => {
+  overlapPlayAreaLocal = !overlapPlayAreaLocal;
+  renderAll();
+};
+toggleOverlapStaging.onclick = () => {
+  overlapStagingLocal = !overlapStagingLocal;
+  renderAll();
+};
+toggleOverlapHand.onclick = () => {
+  overlapHandLocal = !overlapHandLocal;
+  renderAll();
+};
+toggleOverlapPlayed.onclick = () => {
+  overlapPlayedLocal = !overlapPlayedLocal;
+  renderAll();
+};
 
 // ── API ──
 async function api(method, path, body) {
@@ -596,7 +648,9 @@ function renderAll() {
 }
 function renderGameBoard() {
   const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
-  const opts = gameState.options || { showOtherCards:false, allowDraw:true, allowTakeBack:true, groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false };
+  const opts = gameState.options || { showOtherCards:false, allowDraw:true, allowTakeBack:true, groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false, overlapStaging:false, overlapHand:true, overlapPlayed:false };
+
+  // Other players
   otherPlayers.innerHTML = '';
   players.forEach(p => {
     if (p === playerID) return;
@@ -617,8 +671,10 @@ function renderGameBoard() {
     }
     otherPlayers.appendChild(tag);
   });
+
+  // Play area
   playArea.innerHTML = '';
-  playArea.classList.toggle('overlap', opts.overlapPlayArea);
+  playArea.classList.toggle('overlap', overlapPlayAreaLocal);
   if (opts.groupPlayArea) {
     playArea.style.flexDirection = 'column';
     players.forEach(p => {
@@ -651,6 +707,8 @@ function renderGameBoard() {
       playArea.appendChild(span);
     });
   }
+
+  // Deck
   deckArea.innerHTML = '';
   const deckRemaining = gameState.deck.length;
   $('deckCountLabel').textContent = `${deckRemaining} left`;
@@ -673,7 +731,10 @@ function renderGameBoard() {
       if (!isNaN(idx) && stagingCards[idx]?.source === 'draw') removeStagingCard(idx);
     }
   };
+
+  // Hand
   myHand.innerHTML = '';
+  myHand.classList.toggle('no-overlap', !overlapHandLocal);
   localHandOrder.forEach((cs, idx) => {
     const { suit, rank } = getCardDisplay(cs);
     const cardEl = document.createElement('div');
@@ -689,7 +750,10 @@ function renderGameBoard() {
   });
   myHand.ondragover = e => e.preventDefault();
   myHand.ondrop = e => e.preventDefault();
+
+  // Staging area
   stagingArea.innerHTML = '';
+  stagingArea.classList.toggle('overlap', overlapStagingLocal);
   stagingArea.ondragover = e => e.preventDefault();
   stagingArea.ondrop = e => {
     e.preventDefault();
@@ -708,6 +772,7 @@ function renderGameBoard() {
       addToStaging(removed.card, true, 'takeback', { playedIndex: idx, originalCard: removed });
     }
   };
+
   stagingCards.forEach((entry, i) => {
     const { suit, rank } = getCardDisplay(entry.cardStr);
     const cardEl = document.createElement('div');
@@ -735,7 +800,10 @@ function renderGameBoard() {
     }
     stagingArea.appendChild(cardEl);
   });
+
+  // Your played cards
   myPlayed.innerHTML = '';
+  myPlayed.classList.toggle('overlap', overlapPlayedLocal);
   (gameState.played[playerID] || []).forEach((c, idx) => {
     const cd = getCardDisplay(c.card);
     const cardEl = document.createElement('div');
@@ -755,6 +823,7 @@ function renderGameBoard() {
     }
     myPlayed.appendChild(cardEl);
   });
+
   passBtn.disabled = !(isMyTurn && stagingCards.length === 0);
   playStagedBtn.disabled = !(isMyTurn && stagingCards.length > 0);
   setupPanel.style.display = (isOwner && gameState.phase === 'lobby') ? 'block' : 'none';
@@ -813,6 +882,9 @@ async function fetchGameState() {
     gameState.playLog = serverState.playLog || [];
   } else {
     gameState = serverState;
+    // Set local overlap defaults from options only when first fetching or if not set locally?
+    // We'll initialize the local overlap variables from options only if they haven't been changed by user.
+    // For simplicity, we'll set them once when the game starts (in startGame) and then they can be toggled.
     if (gameState.hands[playerID]) {
       if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
       else mergeLocalHand(gameState.hands[playerID]);
@@ -835,16 +907,14 @@ async function pushGameState(state) {
 // ── Reset Game ──
 async function resetGame() {
   if (!confirm('Reset the game? All progress will be lost but players will stay.')) return;
-
   try {
     const serverPlayers = await fetchServerPlayers();
     players = serverPlayers;
-
     const currentOptions = gameState?.options || {
       showOtherCards: false, allowDraw: true, allowTakeBack: true,
-      groupPlayArea: false, allowFlipPlayed: false, overlapPlayArea: false
+      groupPlayArea: false, allowFlipPlayed: false, overlapPlayArea: false,
+      overlapStaging: false, overlapHand: true, overlapPlayed: false
     };
-
     const newState = {
       phase: 'lobby',
       deck: createDeck(),
@@ -853,13 +923,7 @@ async function resetGame() {
       playLog: [],
       options: { ...currentOptions }
     };
-
-    await api('POST', '/updateGameState', {
-      sessionID,
-      playerID,
-      gameState: JSON.stringify(newState)
-    });
-
+    await api('POST', '/updateGameState', { sessionID, playerID, gameState: JSON.stringify(newState) });
     gameState = newState;
     localHandOrder = [];
     stagingCards = [];
@@ -877,6 +941,11 @@ async function resetGame() {
     pokerOrderToggle.checked = false;
     pokerOrderToggle.disabled = false;
     pokerOrderToggleLabel.textContent = 'Asc';
+    // Reset local overlap toggles to the options
+    overlapPlayAreaLocal = currentOptions.overlapPlayArea || false;
+    overlapStagingLocal = currentOptions.overlapStaging || false;
+    overlapHandLocal = currentOptions.overlapHand !== undefined ? currentOptions.overlapHand : true;
+    overlapPlayedLocal = currentOptions.overlapPlayed || false;
 
     $('showOtherCardsCb').checked = currentOptions.showOtherCards;
     $('allowDrawCb').checked = currentOptions.allowDraw;
@@ -884,15 +953,15 @@ async function resetGame() {
     $('groupPlayAreaCb').checked = currentOptions.groupPlayArea;
     $('allowFlipPlayedCb').checked = currentOptions.allowFlipPlayed;
     $('overlapPlayAreaCb').checked = currentOptions.overlapPlayArea;
+    $('overlapStagingCb').checked = currentOptions.overlapStaging;
+    $('overlapHandCb').checked = currentOptions.overlapHand;
+    $('overlapPlayedCb').checked = currentOptions.overlapPlayed;
 
     setupPanel.style.display = 'block';
     gameBoard.style.display = 'none';
-
     await fetchCurrentPlayer();
     renderAll();
-  } catch (e) {
-    alert('Reset failed: ' + e.message);
-  }
+  } catch (e) { alert('Reset failed: ' + e.message); }
 }
 
 // ── Lobby & Setup ──
@@ -901,12 +970,8 @@ function updateStepperUI() {
   stepperMinus.disabled = cardsPerPlayer <= 1;
   stepperPlus.disabled = cardsPerPlayer >= 52;
 }
-stepperMinus.addEventListener('click', () => {
-  if (cardsPerPlayer > 1) { cardsPerPlayer--; updateStepperUI(); }
-});
-stepperPlus.addEventListener('click', () => {
-  if (cardsPerPlayer < 52) { cardsPerPlayer++; updateStepperUI(); }
-});
+stepperMinus.addEventListener('click', () => { if (cardsPerPlayer > 1) { cardsPerPlayer--; updateStepperUI(); } });
+stepperPlus.addEventListener('click', () => { if (cardsPerPlayer < 52) { cardsPerPlayer++; updateStepperUI(); } });
 
 async function createSession() {
   const name = joinName.value.trim(); if (!name) return;
@@ -915,7 +980,8 @@ async function createSession() {
     phase:'lobby', deck:createDeck(), hands:{}, played:{}, playLog:[],
     options:{
       showOtherCards:false, allowDraw:true, allowTakeBack:true,
-      groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false
+      groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false,
+      overlapStaging:false, overlapHand:true, overlapPlayed:false
     }
   };
   const res = await api('POST', '/createSession', { gameID:GAME_ID, playerID, gameState: JSON.stringify(gameState) });
@@ -937,6 +1003,7 @@ async function createSession() {
   resetGameBtn.style.display = 'inline-block';
   document.querySelectorAll('#setupPanel input[type=checkbox]').forEach(cb => cb.checked = false);
   $('allowDrawCb').checked = true; $('allowTakeBackCb').checked = true;
+  $('overlapHandCb').checked = true;  // hand overlap ON by default
   renderAll(); startAutoRefresh();
 }
 async function joinSession() {
@@ -960,10 +1027,18 @@ async function startGame() {
   gameState.options = {
     showOtherCards: $('showOtherCardsCb').checked, allowDraw: $('allowDrawCb').checked,
     allowTakeBack: $('allowTakeBackCb').checked, groupPlayArea: $('groupPlayAreaCb').checked,
-    allowFlipPlayed: $('allowFlipPlayedCb').checked, overlapPlayArea: $('overlapPlayAreaCb').checked
+    allowFlipPlayed: $('allowFlipPlayedCb').checked, overlapPlayArea: $('overlapPlayAreaCb').checked,
+    overlapStaging: $('overlapStagingCb').checked, overlapHand: $('overlapHandCb').checked,
+    overlapPlayed: $('overlapPlayedCb').checked
   };
   shuffle(gameState.deck);
   gameState.phase = 'playing';
+  // Initialize local overlap toggles from options
+  overlapPlayAreaLocal = gameState.options.overlapPlayArea;
+  overlapStagingLocal = gameState.options.overlapStaging;
+  overlapHandLocal = gameState.options.overlapHand;
+  overlapPlayedLocal = gameState.options.overlapPlayed;
+
   await api('POST', '/startGame', { sessionID, playerID, playerList:[...players], gameState: JSON.stringify(gameState) });
   await fetchGameState();
 }
@@ -1031,20 +1106,18 @@ function resetUI() {
   sessionDisplay.textContent='🏠 -'; playerDisplay.textContent='👤 -'; ownerBadge.style.display='none';
   resetGameBtn.style.display = 'none';
   statusMessage.textContent=''; joinPanel.style.display='flex'; setupPanel.style.display='none'; gameBoard.style.display='none';
-  joinBtn.disabled = true; createBtn.disabled = true;
+  joinBtn.disabled = true; createBtn.disabled = false;  // always enabled
 }
 
-// ── Home screen button logic (includes name check) ──
+// ── Home screen button logic (create always enabled) ──
 function updateJoinCreateButtons() {
   const nameVal = joinName.value.trim();
   const sessVal = joinSessionId.value.trim();
-  const hasName = !!nameVal;
-  joinBtn.disabled = !hasName || !sessVal;
-  createBtn.disabled = !hasName || !!sessVal;
+  joinBtn.disabled = !nameVal || !sessVal;
+  createBtn.disabled = false;   // always enabled
 }
 joinName.addEventListener('input', updateJoinCreateButtons);
 joinSessionId.addEventListener('input', updateJoinCreateButtons);
-// Also check on load and after a short delay to catch autofill
 window.addEventListener('DOMContentLoaded', () => {
   updateJoinCreateButtons();
   setTimeout(updateJoinCreateButtons, 200);
