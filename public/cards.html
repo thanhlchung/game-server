@@ -153,7 +153,24 @@
       font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 4px;
     }
     .action-btn:disabled { opacity: 0.4; pointer-events: none; }
-    .join-panel, .setup-panel { padding: 15px; background: #16213e; border-radius: 15px; margin: 20px; }
+    .join-panel {
+      padding: 25px 20px;
+      background: #16213e;
+      border-radius: 20px;
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .join-panel h2 {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .setup-panel { padding: 15px; background: #16213e; border-radius: 15px; margin: 20px; }
     input, select {
       background: #0f3460; border: 1px solid #e94560; color: white; padding: 8px; border-radius: 8px;
     }
@@ -250,6 +267,7 @@
   </div>
 
   <div id="joinPanel" class="join-panel" style="display:flex; flex-direction:column; gap:10px;">
+    <h2>Card Deck Simulator</h2>
     <input type="text" id="joinName" placeholder="Your name">
     <input type="text" id="joinSessionId" placeholder="Session ID (join)">
     <button id="joinBtn" class="primary" disabled>Join</button>
