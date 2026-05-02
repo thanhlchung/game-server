@@ -512,16 +512,20 @@ function addToStaging(cardStr, faceUp, source, extra) {
     entry.playedIndex = extra.playedIndex;
     entry.originalCard = extra.originalCard;
   }
-  stagingCards.push(entry);
+  // Store original hand index for 'play' to return to correct position
   if (source === 'play') {
     const idx = localHandOrder.indexOf(cardStr);
-    if (idx !== -1) localHandOrder.splice(idx, 1);
+    if (idx !== -1) {
+      entry.handIndex = idx;          // remember original position
+      localHandOrder.splice(idx, 1); // remove from hand
+    }
   } else if (source === 'draw') {
     // deck already popped
   } else if (source === 'takeback' || source === 'flip') {
     const arr = gameState.played[playerID];
     arr.splice(extra.playedIndex, 1);
   }
+  stagingCards.push(entry);
   renderAll();
   return true;
 }
@@ -529,7 +533,9 @@ function addToStaging(cardStr, faceUp, source, extra) {
 function removeStagingCard(index) {
   const entry = stagingCards.splice(index, 1)[0];
   if (entry.source === 'play') {
-    localHandOrder.push(entry.cardStr);
+    // Return to original hand position
+    const insertAt = entry.handIndex !== undefined ? entry.handIndex : localHandOrder.length;
+    localHandOrder.splice(insertAt, 0, entry.cardStr);
   } else if (entry.source === 'draw') {
     gameState.deck.push(stringToCard(entry.cardStr));
   } else if (entry.source === 'takeback' || entry.source === 'flip') {
