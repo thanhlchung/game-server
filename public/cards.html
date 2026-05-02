@@ -386,6 +386,8 @@ let sessionID, playerID, isOwner = false;
 let gameState = null;
 let players = [];
 let currentPlayer = null;
+let previousCurrentPlayer = null;   // track previous turn for change detection
+let lastPlayLogLength = 0;         // track playLog length to avoid unnecessary re-renders
 let localHandOrder = [];
 let stagingCards = [];
 let actionMode = null;
@@ -981,10 +983,6 @@ async function fetchServerPlayers() {
 }
 async function fetchGameState(force = false) {
   if (!sessionID) return;
-  // ** Skip auto-sync during own turn, unless forced **
-  if (!force && currentPlayer === playerID && gameState?.phase === 'playing') {
-    return;
-  }
   try {
     const serverPlayers = await fetchServerPlayers();
     if (!serverPlayers.length) return;
@@ -1002,6 +1000,22 @@ async function fetchGameState(force = false) {
     }
     const serverState = JSON.parse(res.gameState);
     delete serverState.currentPlayer;
+
+    // Fetch new current player
+    await fetchCurrentPlayer();
+
+    const newPlayLogLength = (serverState.playLog || []).length;
+    const turnChanged = (currentPlayer !== previousCurrentPlayer);
+
+    // If nothing meaningful changed and we're not forced, skip re-render
+    if (!force && !turnChanged && newPlayLogLength === lastPlayLogLength) {
+      return;
+    }
+
+    // Update tracking
+    previousCurrentPlayer = currentPlayer;
+    lastPlayLogLength = newPlayLogLength;
+
     const isStaging = stagingCards.length > 0;
     if (!isOwner) {
       players = serverPlayers;
@@ -1053,7 +1067,6 @@ async function fetchGameState(force = false) {
         setActionMode(null);
       }
     }
-    await fetchCurrentPlayer();
     renderAll();
   } catch (e) {
     console.error('Fetch error, likely session invalid:', e.message);
@@ -1063,7 +1076,6 @@ async function fetchGameState(force = false) {
 async function pushGameState(state) {
   const clean = { ...state }; delete clean.currentPlayer;
   await api('POST', '/updateGameState', { sessionID, playerID, gameState: JSON.stringify(clean) });
-  // Force a full sync after pushing so we immediately see the new turn
   await fetchGameState(true);
 }
 
@@ -1149,7 +1161,7 @@ async function createSession() {
     }
   };
   const res = await api('POST', '/createSession', { gameID:GAME_ID, playerID, gameState: JSON.stringify(gameState) });
-  sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null;
+  sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null; previousCurrentPlayer = null;
   setupButtonsUsed = {};
   commitIdCounter = 1;
   handSortState = 'none';
@@ -1182,7 +1194,7 @@ async function joinSession() {
     sessionDisplay.textContent = '🏠 '+sessionID; playerDisplay.textContent = '👤 '+playerID;
     joinPanel.style.display = 'none'; ownerBadge.style.display = 'none';
     resetGameBtn.style.display = 'none';
-    await fetchGameState(true);  // force initial fetch
+    await fetchGameState(true);
     if (players[0] === playerID) { isOwner = true; ownerBadge.style.display = 'inline'; resetGameBtn.style.display = 'inline-block'; }
     startAutoRefresh();
   } catch(e) { alert(e.message); }
@@ -1205,7 +1217,7 @@ async function startGame() {
   overlapPlayedLocal = gameState.options.overlapPlayed;
 
   await api('POST', '/startGame', { sessionID, playerID, playerList:[...players], gameState: JSON.stringify(gameState) });
-  await fetchGameState(true);  // force after start
+  await fetchGameState(true);
 }
 
 pokerOrderToggle.addEventListener('change', () => {
@@ -1275,6 +1287,8 @@ function resetUI() {
   sessionID=null; playerID=null; isOwner=false; gameState=null; players=[]; localHandOrder=[];
   stagingCards = []; setActionMode(null); setupButtonsUsed = {};
   handSortState = 'none';
+  lastPlayLogLength = 0;
+  previousCurrentPlayer = null;
   sessionDisplay.textContent='🏠 -'; playerDisplay.textContent='👤 -'; ownerBadge.style.display='none';
   resetGameBtn.style.display = 'none';
   statusMessage.textContent=''; joinPanel.style.display='flex'; setupPanel.style.display='none'; gameBoard.style.display='none';
@@ -1306,7 +1320,7 @@ updateJoinCreateButtons();
 // Event bindings
 createBtn.onclick = createSession;
 joinBtn.onclick = joinSession;
-$('refreshBtn').onclick = () => fetchGameState(true);  // manual refresh forces sync
+$('refreshBtn').onclick = () => fetchGameState(true);
 $('leaveBtn').onclick = () => {
   if (isOwner && sessionID) {
     endSession();
