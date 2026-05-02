@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Card Table</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    #app {
+      width: 100%;
+      max-width: 480px;
+      background: #1a1a2e;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-height: 900px;
+      overflow: hidden;
+      position: relative;
+    }
+    .top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 15px; background: #16213e; border-bottom: 1px solid #0f3460;
+      font-size: 0.8rem; flex-shrink: 0;
+    }
+    .top-bar .session-info { display: flex; align-items: center; gap: 8px; }
+    .top-bar .badge {
+      background: #e94560; color: white; border-radius: 10px; padding: 2px 8px;
+      font-size: 0.7rem; font-weight: bold;
+    }
+    .top-bar .status { color: #f0a500; font-weight: bold; margin-left: 10px; }
+    .top-bar .top-buttons { display: flex; gap: 6px; }
+    .main-area {
+      flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .section {
+      background: #16213e; border-radius: 12px; padding: 8px; position: relative;
+    }
+    .section h3 {
+      font-size: 0.8rem; margin: 0 0 5px 0; color: #a0a0b0; display: flex; align-items: center; gap: 5px;
+    }
+    .section-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .section-header button {
+      background: none; border: none; color: #a0a0b0; font-size: 1rem; cursor: pointer;
+      padding: 2px 6px; border-radius: 4px; height: 30px; display: inline-flex; align-items: center;
+    }
+    .section-header button:hover { background: #0f3460; }
+    .header-buttons {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .other-players { display: flex; flex-wrap: wrap; gap: 5px; }
+    .player-tag {
+      background: #0f3460; border-radius: 15px; padding: 4px 10px; font-size: 0.7rem;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .play-area {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .play-row {
+      display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
+    }
+    .play-row::-webkit-scrollbar { height: 6px; }
+    .play-row::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
+    .play-row::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+    .play-row .played-card { flex-shrink: 0; }
+    .play-row.overlap .played-card { margin-left: -16px; }
+    .play-row.overlap .played-card:first-child { margin-left: 0; }
+
+    .deck-pile { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
+    .deck-icon {
+      width: 50px; height: 70px;
+      background: repeating-linear-gradient(45deg, #2a2a4a, #2a2a4a 2px, #1a1a2e 2px, #1a1a2e 4px);
+      border-radius: 6px; border: 2px solid #e94560; display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; cursor: grab;
+    }
+    .hand-container {
+      display: flex; align-items: flex-end; min-height: 60px; padding: 5px 0; position: relative;
+      flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
+    }
+    .hand-container::-webkit-scrollbar { height: 6px; }
+    .hand-container::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
+    .hand-container::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+    .hand-card {
+      width: 42px; height: 58px; background: #ffffff; border: 2px solid #cccccc; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; color: #000;
+      position: relative; margin-left: -16px; cursor: pointer; user-select: none; z-index: 1;
+      transition: transform 0.1s; box-shadow: 0 2px 4px rgba(0,0,0,0.3); flex-shrink: 0;
+    }
+    .hand-card:first-child { margin-left: 0; }
+    .hand-card.red { color: #e94560; }
+    .hand-container.no-overlap .hand-card { margin-left: 2px; }
+    .hand-container.no-overlap .hand-card:first-child { margin-left: 0; }
+
+    .staging-area {
+      display: flex; gap: 5px; min-height: 65px; align-items: center;
+      flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
+    }
+    .staging-area::-webkit-scrollbar { height: 6px; }
+    .staging-area::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
+    .staging-area::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+    .staging-area.overlap .staged-card { margin-left: -16px; }
+    .staging-area.overlap .staged-card:first-child { margin-left: 0; }
+    .staged-card {
+      width: 42px; height: 58px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 0.9rem; position: relative; background: #ffffff; border: 2px solid #f0a500;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3); flex-shrink: 0;
+    }
+    .staged-card.face-down {
+      background: repeating-linear-gradient(45deg, #bdc3c7, #bdc3c7 2px, #95a5a6 2px, #95a5a6 4px);
+      color: #2c3e50;
+    }
+    .staged-card .remove {
+      position: absolute; top: -5px; right: -5px; background: #e94560; color: white; border-radius: 50%;
+      width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .my-played {
+      display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
+    }
+    .my-played::-webkit-scrollbar { height: 6px; }
+    .my-played::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
+    .my-played::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
+    .my-played.overlap .played-card { margin-left: -16px; }
+    .my-played.overlap .played-card:first-child { margin-left: 0; }
+    .played-card {
+      width: 42px; height: 58px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 0.9rem; background: #ffffff; border: 2px solid #aaa; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+    .played-card.face-down {
+      background: repeating-linear-gradient(45deg, #bdc3c7, #bdc3c7 2px, #95a5a6 2px, #95a5a6 4px);
+      color: #2c3e50;
+    }
+    .action-btn {
+      background: #e94560; border: none; color: white; padding: 8px 12px; border-radius: 10px;
+      font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 4px;
+    }
+    .action-btn:disabled { opacity: 0.4; pointer-events: none; }
+    .join-panel, .setup-panel { padding: 15px; background: #16213e; border-radius: 15px; margin: 20px; }
+    input, select {
+      background: #0f3460; border: 1px solid #e94560; color: white; padding: 8px; border-radius: 8px;
+    }
+    button.primary { background: #e94560; border: none; color: white; padding: 10px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+    button.primary:disabled { opacity: 0.5; pointer-events: none; }
+    .options-list label { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; margin: 8px 0; }
+    .options-list input[type="checkbox"] { width: auto; }
+    .player-li {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 4px; background: #0f3460; padding: 4px 8px; border-radius: 8px; cursor: grab;
+    }
+    .player-li:active { cursor: grabbing; }
+    .player-li .name { flex: 1; font-size: 0.8rem; }
+    .player-li .count { font-size: 0.7rem; color: #f0a500; margin-right: 4px; }
+    .player-li button { background: #e94560; border: none; color: white; border-radius: 6px; padding: 2px 8px; font-size: 0.6rem; cursor: pointer; }
+
+    .scroll-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      font-size: 1.2rem; color: #e94560; background: rgba(0,0,0,0.6); border-radius: 50%;
+      width: 24px; height: 24px; display: none; align-items: center; justify-content: center;
+      z-index: 5; pointer-events: none;
+    }
+    .scroll-arrow.left  { left: 2px; }
+    .scroll-arrow.right { right: 2px; }
+    .scroll-container { position: relative; }
+
+    .setup-section {
+      background: #16213e; border-radius: 12px; padding: 10px; margin-bottom: 10px;
+    }
+    .setup-section h4 {
+      font-size: 0.85rem; margin: 0 0 8px 0; color: #a0a0b0; display: flex; align-items: center; gap: 5px;
+    }
+    .fixed-width-btn {
+      width: 130px;
+      display: inline-flex;
+      justify-content: center;
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    }
+    .toggle-switch input:disabled + .toggle-slider { opacity: 0.4; pointer-events: none; }
+    .toggle-switch input:disabled ~ .toggle-label { opacity: 0.4; }
+    .toggle-switch input { display: none; }
+    .toggle-slider {
+      width: 42px; height: 24px; background: #0f3460; border-radius: 12px; border: 1px solid #e94560; position: relative; transition: 0.3s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 18px; height: 18px; background: #e0e0e0; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: #e94560; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .toggle-label { font-size: 0.8rem; min-width: 35px; }
+
+    /* Stepper */
+    .stepper {
+      display: flex; align-items: center; gap: 0;
+    }
+    .stepper button {
+      background: #0f3460; border: 1px solid #e94560; color: white; font-size: 1rem;
+      width: 30px; height: 38px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border-radius: 0; user-select: none;
+    }
+    .stepper button:disabled { opacity: 0.4; pointer-events: none; }
+    .stepper .stepper-value {
+      width: 40px; height: 38px; background: #0f3460; border: 1px solid #e94560; color: white;
+      display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold;
+      border-left: none; border-right: none;
+    }
+
+    @media (max-width: 400px) {
+      .hand-card { width: 36px; height: 50px; font-size: 0.85rem; margin-left: -14px; }
+      .hand-card:first-child { margin-left: 0; }
+      .staged-card, .played-card { width: 36px; height: 50px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar">
+    <div class="session-info">
+      <span id="sessionDisplay">🏠 -</span>
+      <span id="playerDisplay">👤 -</span>
+      <span id="ownerBadge" class="badge" style="display:none;">OWNER</span>
+    </div>
+    <span id="statusMessage" class="status"></span>
+    <div class="top-buttons">
+      <button id="resetGameBtn" style="background:none; border:none; font-size:1.2rem; cursor:pointer; display:none;" title="Reset Game">♻️</button>
+      <button id="refreshBtn" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">🔄</button>
+      <button id="leaveBtn" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">🚪</button>
+    </div>
+  </div>
+
+  <div id="joinPanel" class="join-panel" style="display:flex; flex-direction:column; gap:10px;">
+    <input type="text" id="joinName" placeholder="Your name">
+    <input type="text" id="joinSessionId" placeholder="Session ID (join)">
+    <button id="joinBtn" class="primary" disabled>Join</button>
+    <button id="createBtn" class="primary">Create New Game</button>
+  </div>
+
+  <div id="setupPanel" style="display:none;" class="setup-panel">
+    <h3>🛠️ Game Setup</h3>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div class="setup-section" style="flex:1;">
+        <h4>👥 Players <span style="font-size:0.6rem;">(drag to reorder)</span></h4>
+        <ul id="playerList" style="list-style:none; padding:0;"></ul>
+        <button id="shufflePlayersBtn" class="fixed-width-btn">🔀 Shuffle</button>
+      </div>
+      <div class="setup-section" style="flex:1;">
+        <h4>🃏 Deck (<span id="deckCount">52</span>)</h4>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button id="shuffleDeckBtn" class="fixed-width-btn">🃏 Shuffle Deck</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button id="dealAutoBtn" class="fixed-width-btn">🤝 Auto Deal</button>
+            <div class="stepper" id="cardsStepper">
+              <button id="stepperMinus">−</button>
+              <span id="stepperValue" class="stepper-value">7</span>
+              <button id="stepperPlus">+</button>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button id="autoOrderBtn" class="fixed-width-btn">📋 Poker Order</button>
+            <label class="toggle-switch">
+              <input type="checkbox" id="pokerOrderToggle">
+              <span class="toggle-slider"></span>
+              <span id="pokerOrderToggleLabel" class="toggle-label">Asc</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="options-list">
+      <label><input type="checkbox" id="showOtherCardsCb"> 👀 Show others' played cards</label>
+      <label><input type="checkbox" id="allowDrawCb" checked> 🃏 Allow draw</label>
+      <label><input type="checkbox" id="allowTakeBackCb" checked> ↩️ Allow take back</label>
+      <label><input type="checkbox" id="groupPlayAreaCb"> 👥 Group by player</label>
+      <label><input type="checkbox" id="allowFlipPlayedCb"> 🔄 Flip played (tap)</label>
+      <label><input type="checkbox" id="overlapPlayAreaCb"> 🀄️ Overlap cards in play area</label>
+      <label><input type="checkbox" id="overlapStagingCb"> 🀄️ Overlap cards in staging</label>
+      <label><input type="checkbox" id="overlapHandCb" checked> 🀄️ Overlap cards in your hand</label>
+      <label><input type="checkbox" id="overlapPlayedCb"> 🀄️ Overlap cards in your played</label>
+    </div>
+    <button id="startGameBtn" class="primary" style="width:100%; margin-top:10px;">▶ Start Game</button>
+  </div>
+
+  <div id="gameBoard" style="display:none; flex-direction:column; flex:1;">
+    <div class="main-area">
+      <div class="section">
+        <h3>👥 Players</h3>
+        <div id="otherPlayers" class="other-players"></div>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <h3>🃏 Play Area</h3>
+          <button id="toggleOverlapPlayArea" title="Toggle overlap">↔️</button>
+        </div>
+        <div id="playArea" class="play-area"></div>
+      </div>
+      <div class="deck-pile">
+        <div id="deckArea"></div>
+        <span id="deckCountLabel" style="font-size:0.8rem; min-width: 50px;"></span>
+        <button id="playStagedBtn" class="action-btn" disabled>▶️ Play</button>
+        <button id="passBtn" class="action-btn" disabled>⏭️ Pass</button>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <h3>📦 Staging <span id="actionModeLabel" style="font-size:0.6rem;"></span></h3>
+          <button id="toggleOverlapStaging" title="Toggle overlap">↔️</button>
+        </div>
+        <div class="scroll-container">
+          <div id="stagingArea" class="staging-area"></div>
+          <span class="scroll-arrow left">◀</span>
+          <span class="scroll-arrow right">▶</span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <h3>🤚 Your Hand <span style="font-size:0.6rem;">(drag to reorder)</span></h3>
+          <div class="header-buttons">
+            <button id="toggleHandOrder" title="Order hand">↕️</button>
+            <button id="toggleOverlapHand" title="Toggle overlap">↔️</button>
+          </div>
+        </div>
+        <div class="scroll-container">
+          <div id="myHand" class="hand-container"></div>
+          <span class="scroll-arrow left">◀</span>
+          <span class="scroll-arrow right">▶</span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <h3>📤 Your Played</h3>
+          <button id="toggleOverlapPlayed" title="Toggle overlap">↔️</button>
+        </div>
+        <div class="scroll-container">
+          <div id="myPlayed" class="my-played"></div>
+          <span class="scroll-arrow left">◀</span>
+          <span class="scroll-arrow right">▶</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const API = 'https://game-server-xi6m.onrender.com';
+const GAME_ID = 'cardsim';
+
+let sessionID, playerID, isOwner = false;
+let gameState = null;
+let players = [];
+let currentPlayer = null;
+let localHandOrder = [];
+let stagingCards = [];
+let actionMode = null;
+let autoRefreshInterval = null;
+let setupButtonsUsed = {};
+let cardsPerPlayer = 7;
+let commitIdCounter = 1;
+
+// Local overlap toggles
+let overlapPlayAreaLocal = false;
+let overlapStagingLocal = false;
+let overlapHandLocal = true;
+let overlapPlayedLocal = false;
+
+// Hand order state: 'none', 'asc', 'desc'
+let handSortState = 'none';
+
+const $ = id => document.getElementById(id);
+const joinPanel = $('joinPanel'), setupPanel = $('setupPanel'), gameBoard = $('gameBoard');
+const sessionDisplay = $('sessionDisplay'), playerDisplay = $('playerDisplay'), ownerBadge = $('ownerBadge'), statusMessage = $('statusMessage');
+const resetGameBtn = $('resetGameBtn');
+const joinName = $('joinName'), joinSessionId = $('joinSessionId');
+const playerListEl = $('playerList'), deckCount = $('deckCount');
+const otherPlayers = $('otherPlayers'), playArea = $('playArea'), deckArea = $('deckArea'), myHand = $('myHand');
+const stagingArea = $('stagingArea'), myPlayed = $('myPlayed'), actionModeLabel = $('actionModeLabel');
+const playStagedBtn = $('playStagedBtn'), passBtn = $('passBtn');
+const joinBtn = $('joinBtn'), createBtn = $('createBtn');
+const stepperMinus = $('stepperMinus'), stepperPlus = $('stepperPlus'), stepperValue = $('stepperValue');
+const pokerOrderToggle = $('pokerOrderToggle');
+const pokerOrderToggleLabel = $('pokerOrderToggleLabel');
+const toggleOverlapPlayArea = $('toggleOverlapPlayArea');
+const toggleOverlapStaging = $('toggleOverlapStaging');
+const toggleOverlapHand = $('toggleOverlapHand');
+const toggleOverlapPlayed = $('toggleOverlapPlayed');
+const toggleHandOrder = $('toggleHandOrder');
+
+toggleOverlapPlayArea.onclick = () => { overlapPlayAreaLocal = !overlapPlayAreaLocal; renderAll(); };
+toggleOverlapStaging.onclick = () => { overlapStagingLocal = !overlapStagingLocal; renderAll(); };
+toggleOverlapHand.onclick = () => { overlapHandLocal = !overlapHandLocal; renderAll(); };
+toggleOverlapPlayed.onclick = () => { overlapPlayedLocal = !overlapPlayedLocal; renderAll(); };
+
+// Hand order toggle
+toggleHandOrder.onclick = () => {
+  if (!localHandOrder.length) return;
+  if (handSortState === 'none') handSortState = 'asc';
+  else if (handSortState === 'asc') handSortState = 'desc';
+  else handSortState = 'none';
+
+  if (handSortState !== 'none') {
+    const dir = handSortState === 'asc' ? 'asc' : 'desc';
+    localHandOrder.sort((a, b) => {
+      const cardA = getCardDisplay(a);
+      const cardB = getCardDisplay(b);
+      const rankA = rankOrder[cardA.rank] || 0;
+      const rankB = rankOrder[cardB.rank] || 0;
+      let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+      if (cmp !== 0) return cmp;
+      const suitA = suitOrder[cardA.suit] || 0;
+      const suitB = suitOrder[cardB.suit] || 0;
+      return suitA - suitB;
+    });
+  }
+  renderAll();
+};
+
+// ── API ──
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// ── Deck & Cards ──
+let globalCardId = 0;
+function createDeck() {
+  const suits = ['♠', '♥', '♦', '♣'];
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const deck = [];
+  for (const suit of suits) for (const rank of ranks) deck.push({ suit, rank, id: globalCardId++ });
+  return deck;
+}
+function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
+function cardToString(c) { return c.rank + c.suit + '|' + c.id; }
+function stringToCard(s) {
+  if (typeof s === 'object') return s;
+  const parts = s.split('|');
+  if (parts.length < 2) return { suit: s.slice(-1), rank: s.slice(0, -1), id: globalCardId++ };
+  return { suit: parts[0].slice(-1), rank: parts[0].slice(0, -1), id: parseInt(parts[1]) };
+}
+function getCardDisplay(s) { const c = stringToCard(s); return { suit: c.suit, rank: c.rank, id: c.id }; }
+function isRed(suit) { return suit === '♥' || suit === '♦'; }
+function mergeLocalHand(serverHand) {
+  const set = new Set(serverHand);
+  localHandOrder = localHandOrder.filter(c => set.has(c));
+  serverHand.forEach(c => { if (!localHandOrder.includes(c)) localHandOrder.push(c); });
+}
+const suitOrder = { '♠':0, '♥':1, '♦':2, '♣':3 };
+const rankOrder = { 'A':14,'K':13,'Q':12,'J':11,'10':10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2 };
+
+// ── Hand card drag ──
+function attachHandDrag(cardEl, idx) {
+  cardEl.draggable = true;
+  cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'handReorder:' + idx));
+  cardEl.addEventListener('dragover', e => e.preventDefault());
+  cardEl.addEventListener('drop', e => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (!data.startsWith('handReorder:')) return;
+    const fromIdx = parseInt(data.split(':')[1]);
+    if (fromIdx === idx) return;
+    const moved = localHandOrder.splice(fromIdx, 1)[0];
+    localHandOrder.splice(idx, 0, moved);
+    // When user manually drags, we can consider the order to be "none" (custom)
+    handSortState = 'none';
+    renderAll();
+  });
+}
+
+// ── Staging drag ──
+function attachStagedDrag(el, index) {
+  el.draggable = true;
+  el.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'stagingReorder:' + index));
+  el.addEventListener('dragover', e => e.preventDefault());
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (!data.startsWith('stagingReorder:')) return;
+    const fromIdx = parseInt(data.split(':')[1]);
+    if (fromIdx === index) return;
+    const moved = stagingCards.splice(fromIdx, 1)[0];
+    stagingCards.splice(index, 0, moved);
+    renderAll();
+  });
+}
+
+// ── Player list drag ──
+let draggedPlayerItem = null;
+function setupPlayerDrag(li, index) {
+  li.draggable = true;
+  li.addEventListener('dragstart', e => { draggedPlayerItem = { index }; e.dataTransfer.effectAllowed = 'move'; li.style.opacity = '0.5'; });
+  li.addEventListener('dragend', e => { li.style.opacity = '1'; draggedPlayerItem = null; });
+  li.addEventListener('dragover', e => e.preventDefault());
+  li.addEventListener('drop', e => {
+    e.preventDefault();
+    if (!draggedPlayerItem || draggedPlayerItem.index === index) return;
+    const moved = players.splice(draggedPlayerItem.index, 1)[0];
+    players.splice(index, 0, moved);
+    draggedPlayerItem = null;
+    renderAll();
+  });
+}
+
+// ── Action mode ──
+function setActionMode(mode) {
+  actionMode = mode;
+  actionModeLabel.textContent = mode ? `(${mode})` : '';
+}
+
+function addToStaging(cardStr, faceUp, source, extra) {
+  const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
+  if (!isMyTurn && source !== 'play') return false;
+  if (isMyTurn && actionMode && actionMode !== source) return false;
+  if (!isMyTurn && source === 'play') {
+    if (actionMode && actionMode !== 'play') return false;
+    if (!actionMode) setActionMode('play');
+  } else {
+    if (!actionMode) setActionMode(source);
+  }
+  const entry = { cardStr, faceUp, source };
+  if (source === 'takeback' || source === 'flip') {
+    entry.playedIndex = extra.playedIndex;
+    entry.originalCard = extra.originalCard;
+  }
+  if (source === 'play') {
+    const idx = localHandOrder.indexOf(cardStr);
+    if (idx !== -1) {
+      entry.handIndex = idx;
+      localHandOrder.splice(idx, 1);
+    }
+  } else if (source === 'draw') {
+    // deck already popped
+  } else if (source === 'takeback' || source === 'flip') {
+    const arr = gameState.played[playerID];
+    arr.splice(extra.playedIndex, 1);
+  }
+  stagingCards.push(entry);
+  renderAll();
+  return true;
+}
+
+function removeStagingCard(index) {
+  const entry = stagingCards.splice(index, 1)[0];
+  if (entry.source === 'play') {
+    const insertAt = entry.handIndex !== undefined ? entry.handIndex : localHandOrder.length;
+    localHandOrder.splice(insertAt, 0, entry.cardStr);
+  } else if (entry.source === 'draw') {
+    gameState.deck.push(stringToCard(entry.cardStr));
+  } else if (entry.source === 'takeback' || entry.source === 'flip') {
+    const arr = gameState.played[playerID];
+    arr.splice(entry.playedIndex, 0, entry.originalCard);
+  }
+  if (stagingCards.length === 0) setActionMode(null);
+  renderAll();
+}
+
+function clearStaging() {
+  while (stagingCards.length) removeStagingCard(0);
+  setActionMode(null);
+}
+
+async function commitStaging() {
+  if (!stagingCards.length) return;
+  const mode = actionMode;
+  if (!mode) return;
+  const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
+  if (!isMyTurn) return;
+  if (!gameState.played) gameState.played = {};
+  if (!gameState.played[playerID]) gameState.played[playerID] = [];
+  const commitId = commitIdCounter++;
+  if (mode === 'play') {
+    const playedArr = gameState.played[playerID];
+    for (const entry of stagingCards) {
+      playedArr.push({ card: entry.cardStr, faceUp: entry.faceUp });
+      if (!gameState.playLog) gameState.playLog = [];
+      gameState.playLog.push({ player: playerID, card: entry.cardStr, faceUp: entry.faceUp, commitId });
+    }
+  } else if (mode === 'draw') {
+    for (const entry of stagingCards) localHandOrder.push(entry.cardStr);
+  } else if (mode === 'takeback') {
+    for (const entry of stagingCards) {
+      localHandOrder.push(entry.cardStr);
+      if (gameState.playLog) {
+        const idxLog = gameState.playLog.findIndex(e => e.player === playerID && e.card === entry.cardStr);
+        if (idxLog !== -1) gameState.playLog.splice(idxLog, 1);
+      }
+    }
+  } else if (mode === 'flip') {
+    const playedArr = gameState.played[playerID];
+    for (const entry of stagingCards) {
+      const newCardObj = { card: entry.cardStr, faceUp: entry.faceUp };
+      playedArr.splice(entry.playedIndex, 0, newCardObj);
+      if (gameState.playLog) {
+        const logEntry = gameState.playLog.find(e => e.player === playerID && e.card === entry.cardStr);
+        if (logEntry) logEntry.faceUp = entry.faceUp;
+      }
+    }
+  }
+  gameState.hands[playerID] = [...localHandOrder];
+  stagingCards = [];
+  setActionMode(null);
+  renderAll();
+  await pushGameState(gameState);
+}
+
+// ── Rendering ──
+function updateDeckCounts() {
+  const count = gameState ? gameState.deck.length : 0;
+  deckCount.textContent = count;
+  if ($('deckCountLabel')) $('deckCountLabel').textContent = count + ' left';
+}
+function renderPlayerList() {
+  playerListEl.innerHTML = '';
+  players.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'player-li';
+    setupPlayerDrag(li, i);
+    const nameSpan = document.createElement('span'); nameSpan.className = 'name'; nameSpan.textContent = p;
+    const countSpan = document.createElement('span'); countSpan.className = 'count'; countSpan.textContent = (gameState?.hands[p]?.length || 0) + '🃏';
+    const dealBtn = document.createElement('button'); dealBtn.textContent = '🎴';
+    dealBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (!isOwner || gameState.phase !== 'lobby') return;
+      if (gameState.deck.length === 0) return alert('No cards');
+      if (!gameState.hands[p]) gameState.hands[p] = [];
+      gameState.hands[p].push(cardToString(gameState.deck.pop()));
+      if (p === playerID) localHandOrder = [...gameState.hands[playerID]];
+      renderAll();
+    };
+    li.appendChild(nameSpan); li.appendChild(countSpan); li.appendChild(dealBtn);
+    playerListEl.appendChild(li);
+  });
+}
+
+function updateScrollArrows() {
+  const containers = document.querySelectorAll('.scroll-container');
+  containers.forEach(container => {
+    const area = container.querySelector('.staging-area, .hand-container, .my-played, .play-row');
+    if (!area) return;
+    const left = container.querySelector('.scroll-arrow.left');
+    const right = container.querySelector('.scroll-arrow.right');
+    if (!left || !right) return;
+    const canScroll = area.scrollWidth > area.clientWidth;
+    left.style.display = canScroll ? 'flex' : 'none';
+    right.style.display = canScroll ? 'flex' : 'none';
+    if (canScroll) {
+      left.style.opacity = area.scrollLeft > 0 ? '1' : '0.3';
+      right.style.opacity = (area.scrollLeft + area.clientWidth) < area.scrollWidth ? '1' : '0.3';
+    }
+  });
+}
+
+function attachScrollArrowListeners() {
+  document.querySelectorAll('.staging-area, .hand-container, .my-played, .play-row').forEach(area => {
+    area.addEventListener('scroll', updateScrollArrows);
+  });
+}
+
+function renderAll() {
+  if (!gameState) return;
+  updateDeckCounts();
+  renderPlayerList();
+  renderGameBoard();
+  updateScrollArrows();
+}
+
+function createScrollableRow(cardsArray, overlap) {
+  const scrollContainer = document.createElement('div');
+  scrollContainer.className = 'scroll-container';
+  const rowDiv = document.createElement('div');
+  rowDiv.className = 'play-row' + (overlap ? ' overlap' : '');
+  cardsArray.forEach(entry => {
+    const cd = getCardDisplay(entry.card);
+    const span = document.createElement('span');
+    span.className = 'played-card';
+    span.style.color = entry.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
+    span.textContent = entry.faceUp ? cd.rank+cd.suit : '🂠';
+    if (!entry.faceUp) span.classList.add('face-down');
+    rowDiv.appendChild(span);
+  });
+  const leftArrow = document.createElement('span');
+  leftArrow.className = 'scroll-arrow left';
+  leftArrow.textContent = '◀';
+  const rightArrow = document.createElement('span');
+  rightArrow.className = 'scroll-arrow right';
+  rightArrow.textContent = '▶';
+  scrollContainer.appendChild(rowDiv);
+  scrollContainer.appendChild(leftArrow);
+  scrollContainer.appendChild(rightArrow);
+  return scrollContainer;
+}
+
+function renderGameBoard() {
+  const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
+  const opts = gameState.options || { showOtherCards:false, allowDraw:true, allowTakeBack:true, groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false, overlapStaging:false, overlapHand:true, overlapPlayed:false };
+
+  // Other players
+  otherPlayers.innerHTML = '';
+  players.forEach(p => {
+    if (p === playerID) return;
+    const tag = document.createElement('span');
+    tag.className = 'player-tag';
+    tag.innerHTML = `👤 ${p} (${(gameState.hands[p]?.length||0)})`;
+    if (opts.showOtherCards && gameState.played[p]) {
+      const playedDiv = document.createElement('span');
+      (gameState.played[p] || []).forEach(c => {
+        const cd = getCardDisplay(c.card);
+        const span = document.createElement('span');
+        span.style.color = isRed(cd.suit) ? '#e94560' : '#000';
+        span.style.margin = '0 2px';
+        span.textContent = c.faceUp ? cd.rank+cd.suit : '🂠';
+        playedDiv.appendChild(span);
+      });
+      tag.appendChild(playedDiv);
+    }
+    otherPlayers.appendChild(tag);
+  });
+
+  // Play area
+  playArea.innerHTML = '';
+  if (opts.groupPlayArea) {
+    players.forEach(p => {
+      const rowContainer = document.createElement('div');
+      rowContainer.className = 'scroll-container';
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'play-row';
+      if (overlapPlayAreaLocal) rowDiv.classList.add('overlap');
+      rowDiv.style.display = 'flex'; rowDiv.style.alignItems = 'center'; rowDiv.style.marginBottom = '4px';
+      const cardsRow = document.createElement('div');
+      cardsRow.style.display = 'flex';
+      (gameState.played[p] || []).forEach(c => {
+        const cd = getCardDisplay(c.card);
+        const span = document.createElement('span');
+        span.className = 'played-card';
+        span.style.color = c.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
+        span.textContent = c.faceUp ? cd.rank+cd.suit : '🂠';
+        if (!c.faceUp) span.classList.add('face-down');
+        cardsRow.appendChild(span);
+      });
+      rowDiv.innerHTML = `<span style="font-weight:bold;margin-right:4px;">${p}:</span>`;
+      rowDiv.appendChild(cardsRow);
+      const leftArrow = document.createElement('span');
+      leftArrow.className = 'scroll-arrow left';
+      leftArrow.textContent = '◀';
+      const rightArrow = document.createElement('span');
+      rightArrow.className = 'scroll-arrow right';
+      rightArrow.textContent = '▶';
+      rowContainer.appendChild(rowDiv);
+      rowContainer.appendChild(leftArrow);
+      rowContainer.appendChild(rightArrow);
+      playArea.appendChild(rowContainer);
+    });
+  } else {
+    const log = gameState.playLog || [];
+    const MAX_ROW = 13;
+    const batches = [];
+    let i = 0;
+    while (i < log.length) {
+      const startCommit = log[i].commitId ?? -1;
+      const batch = [];
+      while (i < log.length && (log[i].commitId ?? -1) === startCommit) {
+        batch.push(log[i]);
+        i++;
+      }
+      batches.push(batch);
+    }
+    const rows = [];
+    for (const batch of batches) {
+      if (rows.length === 0) {
+        rows.push([...batch]);
+      } else {
+        const lastRow = rows[rows.length - 1];
+        if (lastRow.length + batch.length > MAX_ROW) {
+          rows.push([...batch]);
+        } else {
+          rows[rows.length - 1] = lastRow.concat(batch);
+        }
+      }
+    }
+    for (const rowLog of rows) {
+      const rowContainer = createScrollableRow(rowLog, overlapPlayAreaLocal);
+      playArea.appendChild(rowContainer);
+    }
+  }
+
+  // Deck
+  deckArea.innerHTML = '';
+  const deckRemaining = gameState.deck.length;
+  $('deckCountLabel').textContent = `${deckRemaining} left`;
+  if (deckRemaining > 0) {
+    const deckIcon = document.createElement('div');
+    deckIcon.className = 'deck-icon';
+    deckIcon.textContent = '🂠';
+    if (isMyTurn && opts.allowDraw && (!actionMode || actionMode === 'draw')) {
+      deckIcon.draggable = true;
+      deckIcon.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'draw'));
+    }
+    deckArea.appendChild(deckIcon);
+  }
+  deckArea.ondragover = e => e.preventDefault();
+  deckArea.ondrop = e => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (data.startsWith('stagingReturn:')) {
+      const idx = parseInt(data.split(':')[1]);
+      if (!isNaN(idx) && stagingCards[idx]?.source === 'draw') removeStagingCard(idx);
+    }
+  };
+
+  // Hand (order button state reflected)
+  myHand.innerHTML = '';
+  myHand.classList.toggle('no-overlap', !overlapHandLocal);
+  localHandOrder.forEach((cs, idx) => {
+    const { suit, rank } = getCardDisplay(cs);
+    const cardEl = document.createElement('div');
+    cardEl.className = 'hand-card' + (isRed(suit) ? ' red' : '');
+    cardEl.textContent = rank + suit;
+    cardEl.dataset.index = idx;
+    cardEl.onclick = () => {
+      if (!gameState || gameState.phase !== 'playing') return;
+      addToStaging(cs, true, 'play');
+    };
+    attachHandDrag(cardEl, idx);
+    myHand.appendChild(cardEl);
+  });
+  myHand.ondragover = e => e.preventDefault();
+  myHand.ondrop = e => e.preventDefault();
+
+  // Update hand order button label
+  if (handSortState === 'none') {
+    toggleHandOrder.textContent = '↕️';
+    toggleHandOrder.title = 'Order hand (poker)';
+  } else if (handSortState === 'asc') {
+    toggleHandOrder.textContent = '↓'; // ascending (A high)
+    toggleHandOrder.title = 'Now: Ascending (A, K, Q, …). Click for descending.';
+  } else {
+    toggleHandOrder.textContent = '↑'; // descending
+    toggleHandOrder.title = 'Now: Descending (2, 3, 4, …). Click for no order.';
+  }
+
+  // Staging area
+  stagingArea.innerHTML = '';
+  stagingArea.classList.toggle('overlap', overlapStagingLocal);
+  stagingArea.ondragover = e => e.preventDefault();
+  stagingArea.ondrop = e => {
+    e.preventDefault();
+    if (!isMyTurn) return;
+    const data = e.dataTransfer.getData('text/plain');
+    if (data === 'draw' && (!actionMode || actionMode === 'draw')) {
+      if (gameState.deck.length === 0) return;
+      const card = gameState.deck.pop();
+      addToStaging(cardToString(card), false, 'draw');
+    } else if (data.startsWith('takeback:') && (!actionMode || actionMode === 'takeback')) {
+      const idx = parseInt(data.split(':')[1]);
+      if (isNaN(idx)) return;
+      const playedArr = gameState.played[playerID] || [];
+      if (idx < 0 || idx >= playedArr.length) return;
+      const removed = playedArr[idx];
+      addToStaging(removed.card, true, 'takeback', { playedIndex: idx, originalCard: removed });
+    }
+  };
+
+  stagingCards.forEach((entry, i) => {
+    const { suit, rank } = getCardDisplay(entry.cardStr);
+    const cardEl = document.createElement('div');
+    cardEl.className = 'staged-card';
+    if (!entry.faceUp) cardEl.classList.add('face-down');
+    cardEl.style.color = entry.faceUp ? (isRed(suit) ? '#e94560' : '#000') : '#2c3e50';
+    cardEl.textContent = entry.faceUp ? (rank + suit) : '🂠';
+    attachStagedDrag(cardEl, i);
+    if (entry.source !== 'draw' && isMyTurn) {
+      cardEl.onclick = (e) => {
+        e.stopPropagation();
+        entry.faceUp = !entry.faceUp;
+        renderAll();
+      };
+    } else if (entry.source === 'draw') {
+      cardEl.onclick = (e) => e.stopPropagation();
+    } else {
+      cardEl.onclick = (e) => e.stopPropagation();
+    }
+    const rm = document.createElement('span'); rm.className='remove'; rm.textContent='✕';
+    rm.onclick = (e) => { e.stopPropagation(); removeStagingCard(i); };
+    cardEl.appendChild(rm);
+    if (actionMode === 'takeback' && isMyTurn) {
+      cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'stagingReturn:' + i));
+    }
+    stagingArea.appendChild(cardEl);
+  });
+
+  // Your played cards
+  myPlayed.innerHTML = '';
+  myPlayed.classList.toggle('overlap', overlapPlayedLocal);
+  (gameState.played[playerID] || []).forEach((c, idx) => {
+    const cd = getCardDisplay(c.card);
+    const cardEl = document.createElement('div');
+    cardEl.className = 'played-card';
+    if (!c.faceUp) cardEl.classList.add('face-down');
+    cardEl.style.color = c.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
+    cardEl.textContent = c.faceUp ? (cd.rank+cd.suit) : '🂠';
+    if (isMyTurn && opts.allowTakeBack && (!actionMode || actionMode === 'takeback')) {
+      cardEl.draggable = true;
+      cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'takeback:' + idx));
+    }
+    if (isMyTurn && opts.allowFlipPlayed && (!actionMode || actionMode === 'flip')) {
+      cardEl.onclick = () => {
+        const newFace = !c.faceUp;
+        addToStaging(c.card, newFace, 'flip', { playedIndex: idx, originalCard: { card: c.card, faceUp: c.faceUp } });
+      };
+    }
+    myPlayed.appendChild(cardEl);
+  });
+
+  passBtn.disabled = !(isMyTurn && stagingCards.length === 0);
+  playStagedBtn.disabled = !(isMyTurn && stagingCards.length > 0);
+  setupPanel.style.display = (isOwner && gameState.phase === 'lobby') ? 'block' : 'none';
+  gameBoard.style.display = (gameState.phase === 'playing') ? 'flex' : 'none';
+  joinPanel.style.display = (sessionID === null) ? 'flex' : 'none';
+  statusMessage.textContent = gameState.phase === 'lobby' ? (isOwner ? 'Setting up...' : 'Waiting...') : (isMyTurn ? 'Your turn' : `Waiting ${currentPlayer||'...'}`);
+
+  resetGameBtn.style.display = isOwner ? 'inline-block' : 'none';
+}
+
+// ── State sync ──
+async function fetchCurrentPlayer() {
+  if (!sessionID) return;
+  try { const r = await api('GET', `/getCurrentPlayer?sessionID=${sessionID}`); currentPlayer = r.currentPlayer; } catch(e){}
+}
+async function fetchServerPlayers() {
+  if (!sessionID) return [];
+  try { const r = await api('GET', `/getPlayers?sessionID=${sessionID}`); return r.players || []; } catch(e){ return []; }
+}
+async function fetchGameState() {
+  if (!sessionID) return;
+  const serverPlayers = await fetchServerPlayers();
+  if (!serverPlayers.length) return;
+  if (isOwner && gameState && gameState.phase === 'lobby') {
+    const ex = new Set(players);
+    const nu = serverPlayers.filter(p => !ex.has(p));
+    if (nu.length) { players.push(...nu); nu.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; if(!gameState.played[p]) gameState.played[p]=[]; }); }
+    renderAll(); return;
+  }
+  const res = await api('GET', `/getGameState?sessionID=${sessionID}`);
+  if (!res || !res.gameState) {
+    if (!gameState) gameState = { phase:'lobby', deck:[], hands:{}, played:{}, playLog:[], options:{} };
+    renderAll();
+    return;
+  }
+  const serverState = JSON.parse(res.gameState);
+  delete serverState.currentPlayer;
+  const isStaging = stagingCards.length > 0;
+  if (!isOwner) {
+    players = serverPlayers;
+  } else {
+    const ex = new Set(players);
+    players = players.filter(p => serverPlayers.includes(p));
+    const nu = serverPlayers.filter(p => !ex.has(p));
+    if (nu.length) { players.push(...nu); nu.forEach(p => { if(!serverState.hands[p]) serverState.hands[p]=[]; if(!serverState.played[p]) serverState.played[p]=[]; }); }
+  }
+  if (isStaging) {
+    gameState.phase = serverState.phase;
+    gameState.options = serverState.options;
+    players.forEach(p => {
+      if (p !== playerID) {
+        gameState.hands[p] = serverState.hands[p] || [];
+        gameState.played[p] = serverState.played[p] || [];
+      }
+    });
+    gameState.playLog = serverState.playLog || [];
+  } else {
+    gameState = serverState;
+    if (gameState.hands[playerID]) {
+      if (handSortState === 'none') {
+        if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
+        else mergeLocalHand(gameState.hands[playerID]);
+      } else {
+        const serverSet = new Set(gameState.hands[playerID]);
+        localHandOrder = localHandOrder.filter(c => serverSet.has(c));
+        gameState.hands[playerID].forEach(c => { if (!localHandOrder.includes(c)) localHandOrder.push(c); });
+        if (handSortState !== 'none') {
+          const dir = handSortState === 'asc' ? 'asc' : 'desc';
+          localHandOrder.sort((a, b) => {
+            const cardA = getCardDisplay(a);
+            const cardB = getCardDisplay(b);
+            const rankA = rankOrder[cardA.rank] || 0;
+            const rankB = rankOrder[cardB.rank] || 0;
+            let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+            if (cmp !== 0) return cmp;
+            const suitA = suitOrder[cardA.suit] || 0;
+            const suitB = suitOrder[cardB.suit] || 0;
+            return suitA - suitB;
+          });
+        }
+      }
+      gameState.hands[playerID] = [...localHandOrder];
+    }
+    if (gameState.phase === 'playing' && currentPlayer !== playerID && !(actionMode === 'play' && stagingCards.length > 0)) {
+      stagingCards = [];
+      setActionMode(null);
+    }
+  }
+  await fetchCurrentPlayer();
+  renderAll();
+}
+async function pushGameState(state) {
+  const clean = { ...state }; delete clean.currentPlayer;
+  await api('POST', '/updateGameState', { sessionID, playerID, gameState: JSON.stringify(clean) });
+  await fetchGameState();
+}
+
+// ── Reset Game ──
+async function resetGame() {
+  if (!confirm('Reset the game? All progress will be lost but players will stay.')) return;
+  try {
+    const serverPlayers = await fetchServerPlayers();
+    players = serverPlayers;
+    const currentOptions = gameState?.options || {
+      showOtherCards: false, allowDraw: true, allowTakeBack: true,
+      groupPlayArea: false, allowFlipPlayed: false, overlapPlayArea: false,
+      overlapStaging: false, overlapHand: true, overlapPlayed: false
+    };
+    const newState = {
+      phase: 'lobby',
+      deck: createDeck(),
+      hands: {},
+      played: {},
+      playLog: [],
+      options: { ...currentOptions }
+    };
+    await api('POST', '/updateGameState', { sessionID, playerID, gameState: JSON.stringify(newState) });
+    gameState = newState;
+    localHandOrder = [];
+    stagingCards = [];
+    setActionMode(null);
+    setupButtonsUsed = {};
+    commitIdCounter = 1;
+    handSortState = 'none';
+
+    for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
+      btn.disabled = false;
+      if (btn.id === 'shuffleDeckBtn') btn.textContent = '🃏 Shuffle Deck';
+      else if (btn.id === 'dealAutoBtn') btn.textContent = '🤝 Auto Deal';
+      else if (btn.id === 'autoOrderBtn') btn.textContent = '📋 Poker Order';
+    }
+    cardsPerPlayer = 7;
+    updateStepperUI();
+    pokerOrderToggle.checked = false;
+    pokerOrderToggle.disabled = false;
+    pokerOrderToggleLabel.textContent = 'Asc';
+    overlapPlayAreaLocal = currentOptions.overlapPlayArea || false;
+    overlapStagingLocal = currentOptions.overlapStaging || false;
+    overlapHandLocal = currentOptions.overlapHand !== undefined ? currentOptions.overlapHand : true;
+    overlapPlayedLocal = currentOptions.overlapPlayed || false;
+
+    $('showOtherCardsCb').checked = currentOptions.showOtherCards;
+    $('allowDrawCb').checked = currentOptions.allowDraw;
+    $('allowTakeBackCb').checked = currentOptions.allowTakeBack;
+    $('groupPlayAreaCb').checked = currentOptions.groupPlayArea;
+    $('allowFlipPlayedCb').checked = currentOptions.allowFlipPlayed;
+    $('overlapPlayAreaCb').checked = currentOptions.overlapPlayArea;
+    $('overlapStagingCb').checked = currentOptions.overlapStaging;
+    $('overlapHandCb').checked = currentOptions.overlapHand;
+    $('overlapPlayedCb').checked = currentOptions.overlapPlayed;
+
+    setupPanel.style.display = 'block';
+    gameBoard.style.display = 'none';
+    await fetchCurrentPlayer();
+    renderAll();
+  } catch (e) { alert('Reset failed: ' + e.message); }
+}
+
+// ── Lobby & Setup ──
+function updateStepperUI() {
+  stepperValue.textContent = cardsPerPlayer;
+  stepperMinus.disabled = cardsPerPlayer <= 1;
+  stepperPlus.disabled = cardsPerPlayer >= 52;
+}
+stepperMinus.addEventListener('click', () => { if (cardsPerPlayer > 1) { cardsPerPlayer--; updateStepperUI(); } });
+stepperPlus.addEventListener('click', () => { if (cardsPerPlayer < 52) { cardsPerPlayer++; updateStepperUI(); } });
+
+async function createSession() {
+  const name = joinName.value.trim(); if (!name) return;
+  playerID = name.toLowerCase(); players = [playerID];
+  gameState = {
+    phase:'lobby', deck:createDeck(), hands:{}, played:{}, playLog:[],
+    options:{
+      showOtherCards:false, allowDraw:true, allowTakeBack:true,
+      groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false,
+      overlapStaging:false, overlapHand:true, overlapPlayed:false
+    }
+  };
+  const res = await api('POST', '/createSession', { gameID:GAME_ID, playerID, gameState: JSON.stringify(gameState) });
+  sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null;
+  setupButtonsUsed = {};
+  commitIdCounter = 1;
+  handSortState = 'none';
+  for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
+    btn.disabled = false;
+    if (btn.id === 'shuffleDeckBtn') btn.textContent = '🃏 Shuffle Deck';
+    else if (btn.id === 'dealAutoBtn') btn.textContent = '🤝 Auto Deal';
+    else if (btn.id === 'autoOrderBtn') btn.textContent = '📋 Poker Order';
+  }
+  cardsPerPlayer = 7;
+  updateStepperUI();
+  pokerOrderToggle.checked = false;
+  pokerOrderToggle.disabled = false;
+  pokerOrderToggleLabel.textContent = 'Asc';
+  sessionDisplay.textContent = '🏠 '+sessionID; playerDisplay.textContent = '👤 '+playerID;
+  ownerBadge.style.display = 'inline'; joinPanel.style.display = 'none';
+  resetGameBtn.style.display = 'inline-block';
+  document.querySelectorAll('#setupPanel input[type=checkbox]').forEach(cb => cb.checked = false);
+  $('allowDrawCb').checked = true; $('allowTakeBackCb').checked = true;
+  $('overlapHandCb').checked = true;
+  renderAll(); startAutoRefresh();
+}
+async function joinSession() {
+  const name = joinName.value.trim(), sess = joinSessionId.value.trim();
+  if (!name || !sess) return;
+  playerID = name.toLowerCase(); sessionID = sess;
+  try {
+    const ok = await api('POST', '/joinSession', { gameID:GAME_ID, sessionID, playerID });
+    if (!ok) return alert('Cannot join');
+    sessionDisplay.textContent = '🏠 '+sessionID; playerDisplay.textContent = '👤 '+playerID;
+    joinPanel.style.display = 'none'; ownerBadge.style.display = 'none';
+    resetGameBtn.style.display = 'none';
+    await fetchGameState();
+    if (players[0] === playerID) { isOwner = true; ownerBadge.style.display = 'inline'; resetGameBtn.style.display = 'inline-block'; }
+    startAutoRefresh();
+  } catch(e) { alert(e.message); }
+}
+function startAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefreshInterval); autoRefreshInterval = setInterval(fetchGameState, 3000); }
+async function startGame() {
+  if (!isOwner) return;
+  gameState.options = {
+    showOtherCards: $('showOtherCardsCb').checked, allowDraw: $('allowDrawCb').checked,
+    allowTakeBack: $('allowTakeBackCb').checked, groupPlayArea: $('groupPlayAreaCb').checked,
+    allowFlipPlayed: $('allowFlipPlayedCb').checked, overlapPlayArea: $('overlapPlayAreaCb').checked,
+    overlapStaging: $('overlapStagingCb').checked, overlapHand: $('overlapHandCb').checked,
+    overlapPlayed: $('overlapPlayedCb').checked
+  };
+  shuffle(gameState.deck);
+  gameState.phase = 'playing';
+  overlapPlayAreaLocal = gameState.options.overlapPlayArea;
+  overlapStagingLocal = gameState.options.overlapStaging;
+  overlapHandLocal = gameState.options.overlapHand;
+  overlapPlayedLocal = gameState.options.overlapPlayed;
+
+  await api('POST', '/startGame', { sessionID, playerID, playerList:[...players], gameState: JSON.stringify(gameState) });
+  await fetchGameState();
+}
+
+pokerOrderToggle.addEventListener('change', () => {
+  pokerOrderToggleLabel.textContent = pokerOrderToggle.checked ? 'Desc' : 'Asc';
+});
+
+async function autoOrderDealtCards() {
+  if (!isOwner || gameState.phase !== 'lobby') return;
+  const dir = pokerOrderToggle.checked ? 'desc' : 'asc';
+  players.forEach(p => {
+    if (gameState.hands[p]) {
+      gameState.hands[p].sort((a, b) => {
+        const cardA = getCardDisplay(a);
+        const cardB = getCardDisplay(b);
+        const rankA = rankOrder[cardA.rank] || 0;
+        const rankB = rankOrder[cardB.rank] || 0;
+        let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+        if (cmp !== 0) return cmp;
+        const suitA = suitOrder[cardA.suit] || 0;
+        const suitB = suitOrder[cardB.suit] || 0;
+        return suitA - suitB;
+      });
+    }
+  });
+  if (gameState.hands[playerID]) localHandOrder = [...gameState.hands[playerID]];
+  renderAll();
+  if (!setupButtonsUsed['order']) {
+    setupButtonsUsed['order'] = true;
+    $('autoOrderBtn').disabled = true;
+    pokerOrderToggle.disabled = true;
+    $('autoOrderBtn').textContent = '✓ Poker Order';
+  }
+}
+async function shuffleDeck() {
+  if (!isOwner || gameState.phase!=='lobby') return;
+  shuffle(gameState.deck); renderAll();
+  if (!setupButtonsUsed['shuffle']) {
+    setupButtonsUsed['shuffle'] = true;
+    $('shuffleDeckBtn').disabled = true;
+    $('shuffleDeckBtn').textContent = '✓ Shuffled';
+  }
+}
+async function autoDeal() {
+  if (!isOwner || gameState.phase!=='lobby') return;
+  const num = cardsPerPlayer;
+  players.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; for(let i=0;i<num && gameState.deck.length;i++) gameState.hands[p].push(cardToString(gameState.deck.pop())); });
+  if (gameState.hands[playerID]) localHandOrder = [...gameState.hands[playerID]];
+  renderAll();
+  if (!setupButtonsUsed['deal']) {
+    setupButtonsUsed['deal'] = true;
+    $('dealAutoBtn').disabled = true;
+    stepperMinus.disabled = true;
+    stepperPlus.disabled = true;
+    $('dealAutoBtn').textContent = '✓ Dealt';
+  }
+}
+async function shufflePlayers() { if (isOwner && gameState.phase==='lobby') { shuffle(players); renderPlayerList(); } }
+async function endSession() { if (isOwner) { await api('POST', '/endSession', { sessionID, playerID }); } resetUI(); }
+function resetUI() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  sessionID=null; playerID=null; isOwner=false; gameState=null; players=[]; localHandOrder=[];
+  stagingCards = []; setActionMode(null); setupButtonsUsed = {};
+  handSortState = 'none';
+  sessionDisplay.textContent='🏠 -'; playerDisplay.textContent='👤 -'; ownerBadge.style.display='none';
+  resetGameBtn.style.display = 'none';
+  statusMessage.textContent=''; joinPanel.style.display='flex'; setupPanel.style.display='none'; gameBoard.style.display='none';
+  joinBtn.disabled = true; createBtn.disabled = false;
+}
+
+// ── Home screen button logic (create always enabled) ──
+function updateJoinCreateButtons() {
+  const nameVal = joinName.value.trim();
+  const sessVal = joinSessionId.value.trim();
+  joinBtn.disabled = !nameVal || !sessVal;
+  createBtn.disabled = false;
+}
+joinName.addEventListener('input', updateJoinCreateButtons);
+joinSessionId.addEventListener('input', updateJoinCreateButtons);
+// Clear session ID field on focus
+joinSessionId.addEventListener('focus', () => {
+  joinSessionId.value = '';
+  updateJoinCreateButtons();
+});
+window.addEventListener('DOMContentLoaded', () => {
+  updateJoinCreateButtons();
+  setTimeout(updateJoinCreateButtons, 200);
+});
+const urlP = new URLSearchParams(window.location.search);
+if (urlP.has('session')) { joinSessionId.value = urlP.get('session'); updateJoinCreateButtons(); }
+updateJoinCreateButtons();
+
+// Event bindings
+createBtn.onclick = createSession;
+joinBtn.onclick = joinSession;
+$('refreshBtn').onclick = fetchGameState;
+$('leaveBtn').onclick = () => { if (isOwner && sessionID) endSession().then(resetUI); else resetUI(); };
+resetGameBtn.addEventListener('click', resetGame);
+$('shufflePlayersBtn').onclick = shufflePlayers;
+$('shuffleDeckBtn').onclick = shuffleDeck;
+$('dealAutoBtn').onclick = autoDeal;
+$('autoOrderBtn').onclick = autoOrderDealtCards;
+$('startGameBtn').onclick = startGame;
+playStagedBtn.onclick = commitStaging;
+passBtn.onclick = async () => {
+  if (stagingCards.length) clearStaging();
+  if (gameState) {
+    gameState.hands[playerID] = [...localHandOrder];
+    await pushGameState(gameState);
+  }
+};
+
+attachScrollArrowListeners();
+</script>
+</body>
+</html>
