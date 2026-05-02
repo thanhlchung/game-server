@@ -1069,8 +1069,10 @@ async function fetchGameState(force = false) {
     }
     renderAll();
   } catch (e) {
-    console.error('Fetch error, likely session invalid:', e.message);
-    resetUI();
+    // Temporary network issue – don't reset UI, just log and keep current state
+    console.warn('Sync issue (network/server error), will retry:', e.message);
+    statusMessage.textContent = 'Sync issue… retrying';
+    // Keep previous gameState and currentPlayer intact
   }
 }
 async function pushGameState(state) {
