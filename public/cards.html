@@ -56,9 +56,12 @@
     }
     .section-header button {
       background: none; border: none; color: #a0a0b0; font-size: 1rem; cursor: pointer;
-      padding: 2px 6px; border-radius: 4px;
+      padding: 2px 6px; border-radius: 4px; height: 30px; display: inline-flex; align-items: center;
     }
     .section-header button:hover { background: #0f3460; }
+    .header-buttons {
+      display: flex; gap: 4px; align-items: center;
+    }
     .other-players { display: flex; flex-wrap: wrap; gap: 5px; }
     .player-tag {
       background: #0f3460; border-radius: 15px; padding: 4px 10px; font-size: 0.7rem;
@@ -74,9 +77,7 @@
     .play-row::-webkit-scrollbar { height: 6px; }
     .play-row::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
     .play-row::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
-    .play-row .played-card {
-      flex-shrink: 0;
-    }
+    .play-row .played-card { flex-shrink: 0; }
     .play-row.overlap .played-card { margin-left: -16px; }
     .play-row.overlap .played-card:first-child { margin-left: 0; }
 
@@ -186,8 +187,10 @@
     }
     .fixed-width-btn {
       width: 130px;
+      height: 38px;               /* fixed height to prevent vertical shift */
       display: inline-flex;
       justify-content: center;
+      align-items: center;
     }
 
     /* Toggle switch */
@@ -259,7 +262,6 @@
       <div class="setup-section" style="flex:1;">
         <h4>👥 Players <span style="font-size:0.6rem;">(drag to reorder)</span></h4>
         <ul id="playerList" style="list-style:none; padding:0;"></ul>
-        <button id="shufflePlayersBtn" class="fixed-width-btn">🔀 Shuffle</button>
       </div>
       <div class="setup-section" style="flex:1;">
         <h4>🃏 Deck (<span id="deckCount">52</span>)</h4>
@@ -333,7 +335,10 @@
       <div class="section">
         <div class="section-header">
           <h3>🤚 Your Hand <span style="font-size:0.6rem;">(drag to reorder)</span></h3>
-          <button id="toggleOverlapHand" title="Toggle overlap">↔️</button>
+          <div class="header-buttons">
+            <button id="toggleHandOrder" title="Order hand">↕️</button>
+            <button id="toggleOverlapHand" title="Toggle overlap">↔️</button>
+          </div>
         </div>
         <div class="scroll-container">
           <div id="myHand" class="hand-container"></div>
@@ -377,6 +382,9 @@ let overlapStagingLocal = false;
 let overlapHandLocal = true;
 let overlapPlayedLocal = false;
 
+// Hand order state: 'none', 'asc', 'desc'
+let handSortState = 'none';
+
 const $ = id => document.getElementById(id);
 const joinPanel = $('joinPanel'), setupPanel = $('setupPanel'), gameBoard = $('gameBoard');
 const sessionDisplay = $('sessionDisplay'), playerDisplay = $('playerDisplay'), ownerBadge = $('ownerBadge'), statusMessage = $('statusMessage');
@@ -394,11 +402,36 @@ const toggleOverlapPlayArea = $('toggleOverlapPlayArea');
 const toggleOverlapStaging = $('toggleOverlapStaging');
 const toggleOverlapHand = $('toggleOverlapHand');
 const toggleOverlapPlayed = $('toggleOverlapPlayed');
+const toggleHandOrder = $('toggleHandOrder');
 
 toggleOverlapPlayArea.onclick = () => { overlapPlayAreaLocal = !overlapPlayAreaLocal; renderAll(); };
 toggleOverlapStaging.onclick = () => { overlapStagingLocal = !overlapStagingLocal; renderAll(); };
 toggleOverlapHand.onclick = () => { overlapHandLocal = !overlapHandLocal; renderAll(); };
 toggleOverlapPlayed.onclick = () => { overlapPlayedLocal = !overlapPlayedLocal; renderAll(); };
+
+// Hand order toggle
+toggleHandOrder.onclick = () => {
+  if (!localHandOrder.length) return;
+  if (handSortState === 'none') handSortState = 'asc';
+  else if (handSortState === 'asc') handSortState = 'desc';
+  else handSortState = 'none';
+
+  if (handSortState !== 'none') {
+    const dir = handSortState === 'asc' ? 'asc' : 'desc';
+    localHandOrder.sort((a, b) => {
+      const cardA = getCardDisplay(a);
+      const cardB = getCardDisplay(b);
+      const rankA = rankOrder[cardA.rank] || 0;
+      const rankB = rankOrder[cardB.rank] || 0;
+      let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+      if (cmp !== 0) return cmp;
+      const suitA = suitOrder[cardA.suit] || 0;
+      const suitB = suitOrder[cardB.suit] || 0;
+      return suitA - suitB;
+    });
+  }
+  renderAll();
+};
 
 // ── API ──
 async function api(method, path, body) {
@@ -453,6 +486,7 @@ function attachHandDrag(cardEl, idx) {
     if (fromIdx === idx) return;
     const moved = localHandOrder.splice(fromIdx, 1)[0];
     localHandOrder.splice(idx, 0, moved);
+    handSortState = 'none';
     renderAll();
   });
 }
@@ -512,12 +546,11 @@ function addToStaging(cardStr, faceUp, source, extra) {
     entry.playedIndex = extra.playedIndex;
     entry.originalCard = extra.originalCard;
   }
-  // Store original hand index for 'play' to return to correct position
   if (source === 'play') {
     const idx = localHandOrder.indexOf(cardStr);
     if (idx !== -1) {
-      entry.handIndex = idx;          // remember original position
-      localHandOrder.splice(idx, 1); // remove from hand
+      entry.handIndex = idx;
+      localHandOrder.splice(idx, 1);
     }
   } else if (source === 'draw') {
     // deck already popped
@@ -533,7 +566,6 @@ function addToStaging(cardStr, faceUp, source, extra) {
 function removeStagingCard(index) {
   const entry = stagingCards.splice(index, 1)[0];
   if (entry.source === 'play') {
-    // Return to original hand position
     const insertAt = entry.handIndex !== undefined ? entry.handIndex : localHandOrder.length;
     localHandOrder.splice(insertAt, 0, entry.cardStr);
   } else if (entry.source === 'draw') {
@@ -799,7 +831,7 @@ function renderGameBoard() {
     }
   };
 
-  // Hand
+  // Hand (order button state reflected)
   myHand.innerHTML = '';
   myHand.classList.toggle('no-overlap', !overlapHandLocal);
   localHandOrder.forEach((cs, idx) => {
@@ -817,6 +849,18 @@ function renderGameBoard() {
   });
   myHand.ondragover = e => e.preventDefault();
   myHand.ondrop = e => e.preventDefault();
+
+  // Update hand order button label
+  if (handSortState === 'none') {
+    toggleHandOrder.textContent = '↕️';
+    toggleHandOrder.title = 'Order hand (poker)';
+  } else if (handSortState === 'asc') {
+    toggleHandOrder.textContent = '↓';
+    toggleHandOrder.title = 'Now: Ascending (A, K, Q, …). Click for descending.';
+  } else {
+    toggleHandOrder.textContent = '↑';
+    toggleHandOrder.title = 'Now: Descending (2, 3, 4, …). Click for no order.';
+  }
 
   // Staging area
   stagingArea.innerHTML = '';
@@ -950,8 +994,28 @@ async function fetchGameState() {
   } else {
     gameState = serverState;
     if (gameState.hands[playerID]) {
-      if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
-      else mergeLocalHand(gameState.hands[playerID]);
+      if (handSortState === 'none') {
+        if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
+        else mergeLocalHand(gameState.hands[playerID]);
+      } else {
+        const serverSet = new Set(gameState.hands[playerID]);
+        localHandOrder = localHandOrder.filter(c => serverSet.has(c));
+        gameState.hands[playerID].forEach(c => { if (!localHandOrder.includes(c)) localHandOrder.push(c); });
+        if (handSortState !== 'none') {
+          const dir = handSortState === 'asc' ? 'asc' : 'desc';
+          localHandOrder.sort((a, b) => {
+            const cardA = getCardDisplay(a);
+            const cardB = getCardDisplay(b);
+            const rankA = rankOrder[cardA.rank] || 0;
+            const rankB = rankOrder[cardB.rank] || 0;
+            let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+            if (cmp !== 0) return cmp;
+            const suitA = suitOrder[cardA.suit] || 0;
+            const suitB = suitOrder[cardB.suit] || 0;
+            return suitA - suitB;
+          });
+        }
+      }
       gameState.hands[playerID] = [...localHandOrder];
     }
     if (gameState.phase === 'playing' && currentPlayer !== playerID && !(actionMode === 'play' && stagingCards.length > 0)) {
@@ -994,6 +1058,7 @@ async function resetGame() {
     setActionMode(null);
     setupButtonsUsed = {};
     commitIdCounter = 1;
+    handSortState = 'none';
 
     for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
       btn.disabled = false;
@@ -1052,6 +1117,7 @@ async function createSession() {
   sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null;
   setupButtonsUsed = {};
   commitIdCounter = 1;
+  handSortState = 'none';
   for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
     btn.disabled = false;
     if (btn.id === 'shuffleDeckBtn') btn.textContent = '🃏 Shuffle Deck';
@@ -1161,12 +1227,12 @@ async function autoDeal() {
     $('dealAutoBtn').textContent = '✓ Dealt';
   }
 }
-async function shufflePlayers() { if (isOwner && gameState.phase==='lobby') { shuffle(players); renderPlayerList(); } }
 async function endSession() { if (isOwner) { await api('POST', '/endSession', { sessionID, playerID }); } resetUI(); }
 function resetUI() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   sessionID=null; playerID=null; isOwner=false; gameState=null; players=[]; localHandOrder=[];
   stagingCards = []; setActionMode(null); setupButtonsUsed = {};
+  handSortState = 'none';
   sessionDisplay.textContent='🏠 -'; playerDisplay.textContent='👤 -'; ownerBadge.style.display='none';
   resetGameBtn.style.display = 'none';
   statusMessage.textContent=''; joinPanel.style.display='flex'; setupPanel.style.display='none'; gameBoard.style.display='none';
@@ -1201,7 +1267,6 @@ joinBtn.onclick = joinSession;
 $('refreshBtn').onclick = fetchGameState;
 $('leaveBtn').onclick = () => { if (isOwner && sessionID) endSession().then(resetUI); else resetUI(); };
 resetGameBtn.addEventListener('click', resetGame);
-$('shufflePlayersBtn').onclick = shufflePlayers;
 $('shuffleDeckBtn').onclick = shuffleDeck;
 $('dealAutoBtn').onclick = autoDeal;
 $('autoOrderBtn').onclick = autoOrderDealtCards;

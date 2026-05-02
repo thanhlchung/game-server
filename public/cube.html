@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, touch-action: none">
+    <title>Rubik's Cube</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface2: #0f3460;
+            --text: #e0e0e0;
+            --text2: #b0b0b0;
+            --accent: #e94560;
+            --accent2: #ff6b6b;
+            --gold: #f0c060;
+            --btn-bg: #1c2541;
+            --btn-hover: #2a3a5c;
+            --btn-active: #e94560;
+            --border: #2a3050;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            font-family: var(--font);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            background: radial-gradient(ellipse at center, #1a1a3a 0%, #0a0a18 70%);
+            touch-action: pan-x pan-y pinch-zoom;
+        }
+
+        .app-container {
+            display: flex;
+            gap: 28px;
+            align-items: flex-start;
+            padding: 20px;
+            max-width: 1100px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .cube-panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        #canvas-container {
+            width: 480px;
+            height: 480px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            cursor: grab;
+            touch-action: none;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        #canvas-container.dragging {
+            cursor: grabbing;
+        }
+        canvas {
+            display: block;
+        }
+
+        .controls-panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 22px 20px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 280px;
+            max-width: 340px;
+            flex: 1;
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+            text-align: center;
+            letter-spacing: 0.03em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .panel-title .icon {
+            font-size: 1.5rem;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: var(--btn-bg);
+            border-radius: var(--radius-sm);
+            padding: 10px 16px;
+            text-align: center;
+            min-width: 70px;
+            flex: 1;
+            border: 1px solid var(--border);
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
+            font-family: var(--font-mono);
+            letter-spacing: 0.02em;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+        .stat-value.accent {
+            color: var(--accent2);
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text2);
+            margin-bottom: -8px;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .btn-grid.col3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        .btn-grid.col2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        button {
+            font-family: var(--font);
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 10px 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            background: var(--btn-bg);
+            color: var(--text);
+            transition: all 0.15s ease;
+            letter-spacing: 0.02em;
+            position: relative;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        button:hover {
+            background: var(--btn-hover);
+            border-color: #4a5580;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        button:active {
+            background: var(--btn-active);
+            border-color: var(--btn-active);
+            transform: scale(0.96);
+            transition: all 0.05s ease;
+            color: #fff;
+        }
+        button.prime {
+            background: #1e2240;
+            border-color: #3a3050;
+            color: #d0c0f0;
+        }
+        button.prime:hover {
+            background: #2a2850;
+            border-color: #5a4a80;
+        }
+        button.scramble {
+            background: #3d1a1a;
+            border-color: #5a3030;
+            color: #ffaaaa;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+        button.scramble:hover {
+            background: #5a2525;
+            border-color: #8a4040;
+        }
+        button.reset {
+            background: #1a2d1a;
+            border-color: #2a4a2a;
+            color: #aaffaa;
+            font-weight: 700;
+        }
+        button.reset:hover {
+            background: #254025;
+            border-color: #3a6a3a;
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .kbd-hint {
+            font-size: 0.65rem;
+            color: var(--text2);
+            text-align: center;
+            opacity: 0.8;
+            letter-spacing: 0.03em;
+            line-height: 1.5;
+        }
+        .kbd-hint span {
+            display: inline-block;
+            background: var(--btn-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin: 1px 2px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0;
+        }
+        .kbd-hint .key-combo {
+            margin: 0 3px;
+        }
+
+        @media (max-width: 860px) {
+            .app-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                padding: 10px;
+            }
+            #canvas-container {
+                width: 92vw;
+                height: 92vw;
+                max-width: 420px;
+                max-height: 420px;
+            }
+            .controls-panel {
+                min-width: auto;
+                max-width: 420px;
+                width: 92vw;
+                padding: 14px;
+                gap: 10px;
+            }
+            .btn-grid {
+                gap: 5px;
+            }
+            button {
+                font-size: 0.78rem;
+                padding: 9px 5px;
+            }
+            .stat-value {
+                font-size: 1.2rem;
+            }
+        }
+        @media (max-width: 400px) {
+            #canvas-container {
+                width: 95vw;
+                height: 95vw;
+                max-width: 340px;
+                max-height: 340px;
+            }
+            .controls-panel {
+                width: 95vw;
+                max-width: 340px;
+                padding: 10px;
+            }
+            button {
+                font-size: 0.7rem;
+                padding: 8px 3px;
+            }
+            .btn-grid {
+                gap: 3px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="cube-panel">
+            <div id="canvas-container"></div>
+        </div>
+        <div class="controls-panel">
+            <div class="panel-title">
+                <span class="icon">🎲</span> Rubik's Cube
+            </div>
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-value" id="move-count">0</div>
+                    <div class="stat-label">Moves</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value accent" id="timer-display">00:00</div>
+                    <div class="stat-label">Timer</div>
+                </div>
+            </div>
+            <div class="section-label">Face Moves</div>
+            <div class="btn-grid">
+                <button data-move="R" title="Right clockwise">R</button>
+                <button data-move="R'" class="prime" title="Right counter-clockwise">R'</button>
+                <button data-move="L" title="Left clockwise">L</button>
+                <button data-move="L'" class="prime" title="Left counter-clockwise">L'</button>
+                <button data-move="U" title="Up clockwise">U</button>
+                <button data-move="U'" class="prime" title="Up counter-clockwise">U'</button>
+                <button data-move="D" title="Down clockwise">D</button>
+                <button data-move="D'" class="prime" title="Down counter-clockwise">D'</button>
+                <button data-move="F" title="Front clockwise">F</button>
+                <button data-move="F'" class="prime" title="Front counter-clockwise">F'</button>
+                <button data-move="B" title="Back clockwise">B</button>
+                <button data-move="B'" class="prime" title="Back counter-clockwise">B'</button>
+            </div>
+            <div class="btn-grid col2">
+                <button class="scramble" id="btn-scramble" title="Scramble the cube">🔀 Scramble</button>
+                <button class="reset" id="btn-reset" title="Reset to solved state">✨ Reset</button>
+            </div>
+            <div class="kbd-hint">
+                <span>R</span><span>L</span><span>U</span><span>D</span><span>F</span><span>B</span> keys &nbsp;|&nbsp;
+                <span>Shift</span>+key for inverse &nbsp;|&nbsp;
+                <span>Space</span> scramble &nbsp;|&nbsp;
+                <span>Esc</span> reset<br>
+                <span>M</span><span>E</span><span>S</span> middle slices &nbsp;|&nbsp;
+                <span>Shift</span>+<span>M/E/S</span> inverse
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ─────────────────────────────────────
+        // DOM Elements
+        // ─────────────────────────────────────
+        const container = document.getElementById('canvas-container');
+        const moveCountEl = document.getElementById('move-count');
+        const timerDisplayEl = document.getElementById('timer-display');
+        const btnScramble = document.getElementById('btn-scramble');
+        const btnReset = document.getElementById('btn-reset');
+        const allMoveButtons = document.querySelectorAll('[data-move]');
+
+        // ─────────────────────────────────────
+        // Three.js Setup
+        // ─────────────────────────────────────
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 30);
+        camera.position.set(6, 4.5, 7.5);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = false;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // Orbit Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.12;
+        controls.minDistance = 3.5;
+        controls.maxDistance = 12;
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        // Disable camera rotation — we rotate the cube via drag instead
+        controls.enableRotate = false;
+        controls.enablePan = false;
+
+        const initialSpherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        controls.minPolarAngle = initialSpherical.phi;
+        controls.maxPolarAngle = initialSpherical.phi;
+
+        // ─────────────────────────────────────
+        // Lighting
+        // ─────────────────────────────────────
+        const ambientLight = new THREE.AmbientLight('#bcc8e8', 1.8);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight('#ffffff', 4.5);
+        keyLight.position.set(8, 14, 10);
+        keyLight.castShadow = false;
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight('#8899cc', 1.2);
+        fillLight.position.set(-3, 2, -2);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight('#ffffff', 2.0);
+        rimLight.position.set(0, -1, 6);
+        scene.add(rimLight);
+
+        // ─────────────────────────────────────
+        // Background & Ground
+        // ─────────────────────────────────────
+        scene.background = new THREE.Color('#0d0d20');
+        scene.fog = new THREE.Fog('#0d0d20', 10, 28);
+
+        const groundGeo = new THREE.PlaneGeometry(30, 30);
+        const groundMat = new THREE.MeshStandardMaterial({ color: '#1a1a30', roughness: 0.9, metalness: 0.1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -4;
+        ground.receiveShadow = false;
+        scene.add(ground);
+
+        // ─────────────────────────────────────
+        // Sticker Texture Generator
+        // ─────────────────────────────────────
+        function createStickerTexture(hexColor, size = 128) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, size, size);
+
+            const margin = size * 0.1;
+            const radius = size * 0.14;
+            const x = margin;
+            const y = margin;
+            const w = size - 2 * margin;
+            const h = size - 2 * margin;
+
+            ctx.fillStyle = hexColor;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.arcTo(x + w, y, x + w, y + radius, radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+            ctx.lineTo(x + radius, y + h);
+            ctx.arcTo(x, y + h, x, y + h - radius, radius);
+            ctx.lineTo(x, y + radius);
+            ctx.arcTo(x, y, x + radius, y, radius);
+            ctx.closePath();
+            ctx.fill();
+
+            const gradient = ctx.createLinearGradient(x, y, x, y + h);
+            gradient.addColorStop(0, 'rgba(255,255,255,0.22)');
+            gradient.addColorStop(0.4, 'rgba(255,255,255,0.05)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.12)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.generateMipmaps = true;
+            return texture;
+        }
+
+        // ─────────────────────────────────────
+        // Materials
+        // ─────────────────────────────────────
+        const stickerColors = {
+            white: '#f8f8f8',
+            yellow: '#ffd500',
+            red: '#c41e3a',
+            orange: '#ff5800',
+            blue: '#0051ba',
+            green: '#009e60',
+        };
+
+        const stickerTextures = {};
+        for (const [name, color] of Object.entries(stickerColors)) {
+            stickerTextures[name] = createStickerTexture(color);
+        }
+
+        const stickerMaterials = {};
+        for (const [name, texture] of Object.entries(stickerTextures)) {
+            stickerMaterials[name] = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.35,
+                metalness: 0.02,
+                color: '#ffffff',
+            });
+        }
+
+        const darkMaterial = new THREE.MeshStandardMaterial({
+            color: '#1a1a1a',
+            roughness: 0.75,
+            metalness: 0.05,
+        });
+
+        // ─────────────────────────────────────
+        // Cubie Creation
+        // ─────────────────────────────────────
+        const cubeGroup = new THREE.Group();
+        scene.add(cubeGroup);
+
+        const cubies = [];
+        const cubieSize = 0.88;
+        const cubieGeo = new THREE.BoxGeometry(cubieSize, cubieSize, cubieSize, 1, 1, 1);
+
+        function getMaterialsForPosition(x, y, z) {
+            const mats = [
+                x === 1 ? stickerMaterials.red : darkMaterial,
+                x === -1 ? stickerMaterials.orange : darkMaterial,
+                y === 1 ? stickerMaterials.white : darkMaterial,
+                y === -1 ? stickerMaterials.yellow : darkMaterial,
+                z === 1 ? stickerMaterials.green : darkMaterial,
+                z === -1 ? stickerMaterials.blue : darkMaterial,
+            ];
+            return mats;
+        }
+
+        for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+                for (let z = -1; z <= 1; z++) {
+                    if (x === 0 && y === 0 && z === 0) continue;
+                    const mats = getMaterialsForPosition(x, y, z);
+                    const mesh = new THREE.Mesh(cubieGeo, mats);
+                    mesh.position.set(x, y, z);
+                    mesh.userData = {
+                        initialPosition: new THREE.Vector3(x, y, z),
+                        initialQuaternion: new THREE.Quaternion().identity(),
+                    };
+                    cubeGroup.add(mesh);
+                    cubies.push(mesh);
+                }
+            }
+        }
+
+        // ─────────────────────────────────────
+        // State
+        // ─────────────────────────────────────
+        let moveCount = 0;
+        let isAnimating = false;
+        const moveQueue = [];
+        let animationData = null;
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let timerRunning = false;
+        let firstMoveDone = false;
+
+        // ─────────────────────────────────────
+        // Timer
+        // ─────────────────────────────────────
+        function startTimer() {
+            if (!timerRunning) {
+                timerRunning = true;
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    updateTimerDisplay();
+                }, 1000);
+            }
+        }
+        function stopTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = null;
+            timerRunning = false;
+        }
+        function resetTimer() {
+            stopTimer();
+            timerSeconds = 0;
+            timerRunning = false;
+            firstMoveDone = false;
+            updateTimerDisplay();
+        }
+        function updateTimerDisplay() {
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            timerDisplayEl.textContent =
+                String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
+
+        // ─────────────────────────────────────
+        // Rotation Snapping
+        // ─────────────────────────────────────
+        function snapPosition(obj) {
+            obj.position.x = Math.round(obj.position.x);
+            obj.position.y = Math.round(obj.position.y);
+            obj.position.z = Math.round(obj.position.z);
+        }
+
+        function snapRotation(obj) {
+            const axes = [
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, 0, 1)
+            ];
+            const rotated = axes.map(axis => axis.clone().applyQuaternion(obj.quaternion));
+
+            function snapAxis(v) {
+                const ax = Math.abs(v.x), ay = Math.abs(v.y), az = Math.abs(v.z);
+                if (ax > ay && ax > az) return new THREE.Vector3(Math.sign(v.x), 0, 0);
+                if (ay > ax && ay > az) return new THREE.Vector3(0, Math.sign(v.y), 0);
+                return new THREE.Vector3(0, 0, Math.sign(v.z));
+            }
+
+            let sx = snapAxis(rotated[0]);
+            let sy = snapAxis(rotated[1]);
+            let sz = snapAxis(rotated[2]);
+
+            const cross = new THREE.Vector3().crossVectors(sx, sy);
+            if (cross.dot(sz) < 0) {
+                sz.negate();
+            }
+
+            if (Math.abs(sx.dot(sy)) > 0.1) {
+                sy.crossVectors(sz, sx).normalize();
+            }
+
+            const m = new THREE.Matrix4().makeBasis(sx, sy, sz);
+            obj.quaternion.setFromRotationMatrix(m);
+        }
+
+        function snapCubie(obj) {
+            snapPosition(obj);
+            snapRotation(obj);
+            obj.updateMatrix();
+        }
+
+        // ─────────────────────────────────────
+        // Face Rotation System
+        // ─────────────────────────────────────
+        function getFaceCubies(axis, layerValue) {
+            const selected = [];
+            for (const cubie of cubies) {
+                const pos = cubie.position;
+                const val = Math.round(pos[axis]);
+                if (val === layerValue) {
+                    selected.push(cubie);
+                }
+            }
+            return selected;
+        }
+
+        function executeMove(axis, layerValue, angle, duration, onComplete) {
+            if (isAnimating || isDraggingCube) return false;
+
+            const faceCubies = getFaceCubies(axis, layerValue);
+            if (faceCubies.length === 0) {
+                if (onComplete) onComplete();
+                return true;
+            }
+
+            isAnimating = true;
+
+            const pivot = new THREE.Object3D();
+            cubeGroup.add(pivot);
+
+            for (const cubie of faceCubies) {
+                pivot.attach(cubie);
+            }
+
+            animationData = {
+                pivot,
+                cubies: faceCubies,
+                axis,
+                targetAngle: angle,
+                elapsed: 0,
+                duration: duration / 1000,
+                onComplete: onComplete || null,
+            };
+
+            return true;
+        }
+
+        function queueMove(axis, layerValue, angle, duration) {
+            moveQueue.push({ axis, layerValue, angle, duration });
+            processQueue();
+        }
+
+        function processQueue() {
+            if (isAnimating || moveQueue.length === 0) return;
+            const move = moveQueue.shift();
+            executeMove(move.axis, move.layerValue, move.angle, move.duration, () => {
+                processQueue();
+            });
+        }
+
+        // ─────────────────────────────────────
+        // Easing Function
+        // ─────────────────────────────────────
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        // ─────────────────────────────────────
+        // Animation Update
+        // ─────────────────────────────────────
+        function updateAnimation(deltaTime) {
+            if (!animationData) return;
+
+            const ad = animationData;
+            ad.elapsed += deltaTime;
+            const rawProgress = Math.min(ad.elapsed / ad.duration, 1.0);
+            const easedProgress = easeInOutCubic(rawProgress);
+            const currentAngle = ad.targetAngle * easedProgress;
+
+            ad.pivot.rotation.set(0, 0, 0);
+            ad.pivot.rotation[ad.axis] = currentAngle;
+
+            if (rawProgress >= 1.0) {
+                ad.pivot.rotation[ad.axis] = ad.targetAngle;
+                ad.pivot.updateMatrixWorld();
+
+                for (const cubie of ad.cubies) {
+                    cubeGroup.attach(cubie);
+                    snapCubie(cubie);
+                }
+
+                cubeGroup.remove(ad.pivot);
+                if (ad.pivot.geometry) ad.pivot.geometry.dispose();
+                if (ad.pivot.material) ad.pivot.material.dispose();
+
+                animationData = null;
+                isAnimating = false;
+
+                if (ad.onComplete) {
+                    ad.onComplete();
+                }
+            }
+        }
+
+        // ─────────────────────────────────────
+        // Dynamic Face Mapping (view-relative)
+        // ─────────────────────────────────────
+        function getDynamicFaceMapping() {
+            const viewFront = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+            const viewUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+            const viewRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+
+            const localAxes = [
+                { name: '+x', axis: 'x', layerValue: 1, vec: new THREE.Vector3(1, 0, 0).applyQuaternion(cubeGroup.quaternion) },
+                { name: '-x', axis: 'x', layerValue: -1, vec: new THREE.Vector3(-1, 0, 0).applyQuaternion(cubeGroup.quaternion) },
+                { name: '+y', axis: 'y', layerValue: 1, vec: new THREE.Vector3(0, 1, 0).applyQuaternion(cubeGroup.quaternion) },
+                { name: '-y', axis: 'y', layerValue: -1, vec: new THREE.Vector3(0, -1, 0).applyQuaternion(cubeGroup.quaternion) },
+                { name: '+z', axis: 'z', layerValue: 1, vec: new THREE.Vector3(0, 0, 1).applyQuaternion(cubeGroup.quaternion) },
+                { name: '-z', axis: 'z', layerValue: -1, vec: new THREE.Vector3(0, 0, -1).applyQuaternion(cubeGroup.quaternion) },
+            ];
+
+            function bestMatch(viewDir) {
+                let best = null;
+                let bestDot = -Infinity;
+                for (const la of localAxes) {
+                    const dot = la.vec.dot(viewDir);
+                    if (dot > bestDot) {
+                        bestDot = dot;
+                        best = la;
+                    }
+                }
+                return best;
+            }
+
+            const u = bestMatch(viewUp);
+            const f = bestMatch(viewFront);
+            const r = bestMatch(viewRight);
+
+            const d = localAxes.find(la => la.axis === u.axis && la.layerValue === -u.layerValue);
+            const b = localAxes.find(la => la.axis === f.axis && la.layerValue === -f.layerValue);
+            const l = localAxes.find(la => la.axis === r.axis && la.layerValue === -r.layerValue);
+
+            return {
+                U: { axis: u.axis, layerValue: u.layerValue },
+                D: { axis: d.axis, layerValue: d.layerValue },
+                F: { axis: f.axis, layerValue: f.layerValue },
+                B: { axis: b.axis, layerValue: b.layerValue },
+                R: { axis: r.axis, layerValue: r.layerValue },
+                L: { axis: l.axis, layerValue: l.layerValue },
+            };
+        }
+
+        // ─────────────────────────────────────
+        // Move Parsing & Execution (now includes M, E, S)
+        // ─────────────────────────────────────
+        function parseMoveNotation(notation) {
+            // Allow R, L, U, D, F, B and M, E, S (with optional ' or 2)
+            const match = notation.match(/^([R LUDFBMES])('|2)?$/i);
+            if (!match) return null;
+            const face = match[1].toUpperCase();
+            const modifier = match[2] || '';
+
+            // Middle slice moves: M (x=0, same dir as L), E (y=0, same dir as D), S (z=0, same dir as F)
+            const sliceMap = {
+                M: { axis: 'x', layerValue: 0, baseAngle: Math.PI / 2 },   // L direction
+                E: { axis: 'y', layerValue: 0, baseAngle: Math.PI / 2 },   // D direction
+                S: { axis: 'z', layerValue: 0, baseAngle: -Math.PI / 2 },  // F direction
+            };
+
+            if (sliceMap[face]) {
+                const s = sliceMap[face];
+                let angle = s.baseAngle;
+                if (modifier === "'") angle = -angle;
+                if (modifier === '2') angle = angle * 2;
+                return { axis: s.axis, layerValue: s.layerValue, angle };
+            }
+
+            // Outer face moves
+            const mapping = getDynamicFaceMapping();
+            const base = mapping[face];
+            if (!base) return null;
+
+            let angle = -Math.PI / 2 * Math.sign(base.layerValue);
+            if (modifier === "'") angle = -angle;
+            if (modifier === '2') angle = angle * 2;
+
+            return {
+                axis: base.axis,
+                layerValue: base.layerValue,
+                angle: angle,
+            };
+        }
+
+        function doMove(notation, duration = 250) {
+            if (isDraggingCube) return;
+            const parsed = parseMoveNotation(notation);
+            if (!parsed) return;
+            queueMove(parsed.axis, parsed.layerValue, parsed.angle, duration);
+
+            moveCount++;
+            moveCountEl.textContent = moveCount;
+            if (!firstMoveDone) {
+                firstMoveDone = true;
+                startTimer();
+            }
+        }
+
+        // ─────────────────────────────────────
+        // Scramble
+        // ─────────────────────────────────────
+        function scramble(numMoves = 22) {
+            if (isDraggingCube) return;
+            stopTimer();
+            timerSeconds = 0;
+            timerRunning = false;
+            firstMoveDone = false;
+            updateTimerDisplay();
+            moveCount = 0;
+            moveCountEl.textContent = '0';
+
+            moveQueue.length = 0;
+            if (animationData) {
+                const ad = animationData;
+                ad.pivot.rotation[ad.axis] = ad.targetAngle;
+                ad.pivot.updateMatrixWorld();
+                for (const cubie of ad.cubies) {
+                    cubeGroup.attach(cubie);
+                    snapCubie(cubie);
+                }
+                cubeGroup.remove(ad.pivot);
+                animationData = null;
+                isAnimating = false;
+            }
+
+            const faceNames = ['R', 'L', 'U', 'D', 'F', 'B'];
+            const moves = [];
+            let lastFace = '';
+            for (let i = 0; i < numMoves; i++) {
+                let face;
+                do {
+                    face = faceNames[Math.floor(Math.random() * faceNames.length)];
+                } while (face === lastFace);
+                lastFace = face;
+                const modifier = Math.random() < 0.35 ? '2' : (Math.random() < 0.5 ? "'" : '');
+                moves.push(face + modifier);
+            }
+
+            for (const moveNotation of moves) {
+                const parsed = parseMoveNotation(moveNotation);
+                if (parsed) {
+                    moveQueue.push({
+                        axis: parsed.axis,
+                        layerValue: parsed.layerValue,
+                        angle: parsed.angle,
+                        duration: 70,
+                    });
+                }
+            }
+            processQueue();
+        }
+
+        // ─────────────────────────────────────
+        // Reset
+        // ─────────────────────────────────────
+        function resetCube(instant = true) {
+            stopTimer();
+            timerSeconds = 0;
+            timerRunning = false;
+            firstMoveDone = false;
+            updateTimerDisplay();
+            moveCount = 0;
+            moveCountEl.textContent = '0';
+
+            moveQueue.length = 0;
+
+            if (animationData) {
+                const ad = animationData;
+                ad.pivot.rotation[ad.axis] = ad.targetAngle;
+                ad.pivot.updateMatrixWorld();
+                for (const cubie of ad.cubies) {
+                    cubeGroup.attach(cubie);
+                    snapCubie(cubie);
+                }
+                cubeGroup.remove(ad.pivot);
+                animationData = null;
+                isAnimating = false;
+            }
+
+            for (const cubie of cubies) {
+                cubeGroup.attach(cubie);
+                cubie.position.copy(cubie.userData.initialPosition);
+                cubie.quaternion.copy(cubie.userData.initialQuaternion);
+                snapCubie(cubie);
+            }
+
+            cubeGroup.quaternion.set(0, 0, 0, 1);
+        }
+
+        // ─────────────────────────────────────
+        // Swipe Gesture Recognition (now supports middle slices & double moves for 3+ stickers)
+        // ─────────────────────────────────────
+        const swipeStickers = [];
+
+        function getStickerLocalData(intersect) {
+            const cubie = intersect.object;
+            const faceIndex = intersect.face.materialIndex;
+            if (faceIndex === undefined || faceIndex < 0) return null;
+
+            const normals = [
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, -1, 0),
+                new THREE.Vector3(0, 0, 1),
+                new THREE.Vector3(0, 0, -1)
+            ];
+            const localNormalBase = normals[faceIndex];
+            if (!localNormalBase) return null;
+
+            const localNormal = localNormalBase.clone().applyQuaternion(cubie.quaternion);
+            const localPos = cubie.position.clone();
+
+            return { localPos, localNormal, cubie, faceIndex };
+        }
+
+        function processSwipeIntersection(intersect) {
+            if (!intersect) return;
+            const data = getStickerLocalData(intersect);
+            if (!data) return;
+
+            const last = swipeStickers[swipeStickers.length - 1];
+            if (last && last.cubie === data.cubie && last.faceIndex === data.faceIndex) return;
+
+            swipeStickers.push(data);
+        }
+
+function endSwipeAndRotate() {
+    if (swipeStickers.length < 2) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    const normalCounts = new Map();
+    for (const s of swipeStickers) {
+        const key = s.localNormal.toArray().toString();
+        normalCounts.set(key, (normalCounts.get(key) || 0) + 1);
+    }
+    let bestKey = null, bestCount = 0;
+    for (const [key, count] of normalCounts) {
+        if (count > bestCount) {
+            bestCount = count;
+            bestKey = key;
+        }
+    }
+    const refNormalArr = bestKey.split(',').map(Number);
+    const refNormal = new THREE.Vector3(refNormalArr[0], refNormalArr[1], refNormalArr[2]);
+
+    const faceStickers = swipeStickers.filter(s => s.localNormal.dot(refNormal) > 0.99);
+    if (faceStickers.length < 2) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    const faceNormalAxis = ['x', 'y', 'z'].find(axis => Math.abs(refNormal[axis]) > 0.5);
+    if (!faceNormalAxis) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    const otherAxes = ['x', 'y', 'z'].filter(a => a !== faceNormalAxis);
+    let sliceAxis = null;
+    let layerValue = 0;
+
+    for (const axis of otherAxes) {
+        const values = faceStickers.map(s => Math.round(s.localPos[axis]));
+        const unique = [...new Set(values)];
+        if (unique.length === 1) {
+            sliceAxis = axis;
+            layerValue = unique[0];
+            break;
+        }
+    }
+
+    // Allow middle slices (layerValue can now be 0)
+    if (!sliceAxis) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    // Resolve face letter
+    let faceLetter = null;
+    if (layerValue !== 0) {
+        const dynamicMap = getDynamicFaceMapping();
+        for (const [letter, { axis: a, layerValue: lv }] of Object.entries(dynamicMap)) {
+            if (a === sliceAxis && lv === layerValue) {
+                faceLetter = letter;
+                break;
+            }
+        }
+        if (!faceLetter) {
+            const physicalMap = {
+                x: { 1: 'R', '-1': 'L' },
+                y: { 1: 'U', '-1': 'D' },
+                z: { 1: 'F', '-1': 'B' }
+            };
+            faceLetter = physicalMap[sliceAxis]?.[layerValue];
+        }
+    } else {
+        const sliceLetters = { x: 'M', y: 'E', z: 'S' };
+        faceLetter = sliceLetters[sliceAxis] || null;
+    }
+
+    if (!faceLetter) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    // Parse base move to obtain axis, layer and reference angle
+    const parsedBase = parseMoveNotation(faceLetter);
+    if (!parsedBase) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    // Determine swipe direction (modifier) from the first and last sticker
+    const first = faceStickers[0];
+    const last = faceStickers[faceStickers.length - 1];
+    const localPosFirst = first.localPos;
+    const localPosLast = last.localPos;
+
+    const D_local = new THREE.Vector3().subVectors(localPosLast, localPosFirst);
+    const D_unit = new THREE.Vector3(
+        Math.round(D_local.x),
+        Math.round(D_local.y),
+        Math.round(D_local.z)
+    ).normalize();
+
+    if (D_unit.length() < 0.5) {
+        swipeStickers.length = 0;
+        return;
+    }
+
+    const A_unit = new THREE.Vector3();
+    A_unit[parsedBase.axis] = 1;
+    const r = new THREE.Vector3().copy(localPosFirst).addScaledVector(A_unit, -parsedBase.layerValue);
+    const T = new THREE.Vector3().crossVectors(A_unit, r).multiplyScalar(Math.sign(parsedBase.angle));
+    const dot = D_unit.dot(T);
+    const modifier = dot > 0 ? '' : "'";
+
+    if (faceStickers.length >= 3) {
+        // 3 or more stickers: double move (180°), respecting swipe direction
+        const directedAngle = parsedBase.angle * (modifier === "'" ? -1 : 1);
+        const doubleAngle = directedAngle * 2;
+
+        swipeStickers.length = 0;
+        // Push the 180° move directly (not through doMove, to count as 2 moves)
+        queueMove(parsedBase.axis, parsedBase.layerValue, doubleAngle, 220);
+        moveCount += 2;
+        moveCountEl.textContent = moveCount;
+        if (!firstMoveDone) {
+            firstMoveDone = true;
+            startTimer();
+        }
+        return;
+    }
+
+    // Exactly 2 stickers: single move
+    const moveNotation = faceLetter + modifier;
+    swipeStickers.length = 0;
+    doMove(moveNotation, 220);
+}
+
+        // ─────────────────────────────────────
+        // Pointer Event Handling (unchanged)
+        // ─────────────────────────────────────
+        let isDraggingCube = false;
+        const activePointers = new Map();
+        let dragStartX = 0;
+        let dragStartY = 0;
+        const cubeStartQuat = new THREE.Quaternion();
+        const DRAG_SENSITIVITY = 0.008;
+
+        let isSwiping = false;
+        let potentialSwipe = false;
+        let swipeStartX = 0, swipeStartY = 0;
+        const SWIPE_THRESHOLD = 8;
+
+        function getCentroid() {
+            let x = 0, y = 0;
+            for (const p of activePointers.values()) {
+                x += p.x;
+                y += p.y;
+            }
+            return { x: x / activePointers.size, y: y / activePointers.size };
+        }
+
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            if (isAnimating) return;
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (activePointers.size === 1) {
+                swipeStartX = e.clientX;
+                swipeStartY = e.clientY;
+                potentialSwipe = true;
+                isSwiping = false;
+                swipeStickers.length = 0;
+            } else {
+                potentialSwipe = false;
+                isSwiping = false;
+                swipeStickers.length = 0;
+            }
+
+            if (activePointers.size === 2) {
+                isDraggingCube = true;
+                const c = getCentroid();
+                dragStartX = c.x;
+                dragStartY = c.y;
+                cubeStartQuat.copy(cubeGroup.quaternion);
+                container.classList.add('dragging');
+                potentialSwipe = false;
+                isSwiping = false;
+                swipeStickers.length = 0;
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!activePointers.has(e.pointerId)) return;
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (potentialSwipe && activePointers.size === 1 && !isSwiping && !isDraggingCube) {
+                const dx = e.clientX - swipeStartX;
+                const dy = e.clientY - swipeStartY;
+                if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD) {
+                    isSwiping = true;
+                }
+            }
+
+            if (isSwiping && activePointers.size === 1 && !isDraggingCube) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                const mouse = new THREE.Vector2(
+                    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                    -((e.clientY - rect.top) / rect.height) * 2 + 1
+                );
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(cubies, false);
+                if (intersects.length > 0) {
+                    processSwipeIntersection(intersects[0]);
+                }
+                return;
+            }
+
+            if (!isDraggingCube || activePointers.size !== 2) return;
+            const c = getCentroid();
+            const dx = c.x - dragStartX;
+            const dy = c.y - dragStartY;
+
+            const screenRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            const screenUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+
+            const qHoriz = new THREE.Quaternion().setFromAxisAngle(screenUp, dx * DRAG_SENSITIVITY);
+            const qVert = new THREE.Quaternion().setFromAxisAngle(screenRight, dy * DRAG_SENSITIVITY);
+
+            cubeGroup.quaternion.copy(cubeStartQuat);
+            cubeGroup.quaternion.premultiply(qHoriz);
+            cubeGroup.quaternion.premultiply(qVert);
+            cubeGroup.quaternion.normalize();
+        });
+
+        window.addEventListener('pointerup', (e) => {
+            if (isSwiping && activePointers.size === 1) {
+                endSwipeAndRotate();
+                isSwiping = false;
+                potentialSwipe = false;
+            } else {
+                swipeStickers.length = 0;
+            }
+
+            activePointers.delete(e.pointerId);
+            if (isDraggingCube && activePointers.size < 2) {
+                isDraggingCube = false;
+                container.classList.remove('dragging');
+            }
+
+            if (activePointers.size === 0) {
+                potentialSwipe = false;
+                isSwiping = false;
+                swipeStickers.length = 0;
+            }
+        });
+
+        window.addEventListener('pointercancel', (e) => {
+            if (isSwiping && activePointers.size === 1) {
+                endSwipeAndRotate();
+            }
+            activePointers.delete(e.pointerId);
+            if (isDraggingCube && activePointers.size < 2) {
+                isDraggingCube = false;
+                container.classList.remove('dragging');
+            }
+            if (activePointers.size === 0) {
+                potentialSwipe = false;
+                isSwiping = false;
+                swipeStickers.length = 0;
+            }
+        });
+
+        // Button and keyboard handlers
+        btnScramble.addEventListener('click', () => scramble());
+        btnReset.addEventListener('click', () => resetCube());
+
+        allMoveButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const moveNotation = btn.dataset.move;
+                if (moveNotation) {
+                    doMove(moveNotation, 220);
+                }
+            });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key.toUpperCase();
+            const shift = e.shiftKey;
+
+            const faceKeys = ['R', 'L', 'U', 'D', 'F', 'B', 'M', 'E', 'S'];
+            if (faceKeys.includes(key)) {
+                e.preventDefault();
+                const notation = shift ? key + "'" : key;
+                doMove(notation, 200);
+                return;
+            }
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                scramble();
+                return;
+            }
+            if (e.code === 'Escape') {
+                e.preventDefault();
+                resetCube();
+                return;
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / Math.max(h, 1);
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = Math.min(clock.getDelta(), 0.1);
+            controls.update();
+            updateAnimation(deltaTime);
+            renderer.render(scene, camera);
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+
+        console.log('🎲 Rubik\'s Cube ready!');
+        console.log('  Two-finger drag → rotate whole cube');
+        console.log('  Swipe across 2 stickers → single move, 3+ stickers → double move');
+        console.log('  Scroll → zoom');
+        console.log('  Keys: R L U D F B M E S (Shift = inverse)');
+        console.log('  Space → scramble | Esc → reset');
+    </script>
+</body>
+</html>
