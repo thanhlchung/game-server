@@ -761,15 +761,26 @@ function renderGameBoard() {
   // Play area
   playArea.innerHTML = '';
   if (opts.groupPlayArea) {
+    // Group by player: name on its own row, minimal height, left justified
     players.forEach(p => {
+      const playerBlock = document.createElement('div');
+      playerBlock.style.marginBottom = '4px';
+
+      // Player name row (minimal height)
+      const nameRow = document.createElement('div');
+      nameRow.style.fontWeight = 'bold';
+      nameRow.style.fontSize = '0.75rem';
+      nameRow.style.padding = '2px 0';
+      nameRow.style.textAlign = 'left';
+      nameRow.textContent = p;
+      playerBlock.appendChild(nameRow);
+
+      // Cards row
       const rowContainer = document.createElement('div');
       rowContainer.className = 'scroll-container';
       const rowDiv = document.createElement('div');
       rowDiv.className = 'play-row';
       if (overlapPlayAreaLocal) rowDiv.classList.add('overlap');
-      rowDiv.style.display = 'flex'; rowDiv.style.alignItems = 'center'; rowDiv.style.marginBottom = '4px';
-      const cardsRow = document.createElement('div');
-      cardsRow.style.display = 'flex';
       (gameState.played[p] || []).forEach(c => {
         const cd = getCardDisplay(c.card);
         const span = document.createElement('span');
@@ -777,10 +788,8 @@ function renderGameBoard() {
         span.style.color = c.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
         span.textContent = c.faceUp ? cd.rank+cd.suit : '🂠';
         if (!c.faceUp) span.classList.add('face-down');
-        cardsRow.appendChild(span);
+        rowDiv.appendChild(span);
       });
-      rowDiv.innerHTML = `<span style="font-weight:bold;margin-right:4px;">${p}:</span>`;
-      rowDiv.appendChild(cardsRow);
       const leftArrow = document.createElement('span');
       leftArrow.className = 'scroll-arrow left';
       leftArrow.textContent = '◀';
@@ -790,9 +799,11 @@ function renderGameBoard() {
       rowContainer.appendChild(rowDiv);
       rowContainer.appendChild(leftArrow);
       rowContainer.appendChild(rightArrow);
-      playArea.appendChild(rowContainer);
+      playerBlock.appendChild(rowContainer);
+      playArea.appendChild(playerBlock);
     });
   } else {
+    // Non-grouped: existing logic
     const log = gameState.playLog || [];
     const MAX_ROW = 13;
     const batches = [];
@@ -974,75 +985,81 @@ async function fetchServerPlayers() {
 }
 async function fetchGameState() {
   if (!sessionID) return;
-  const serverPlayers = await fetchServerPlayers();
-  if (!serverPlayers.length) return;
-  if (isOwner && gameState && gameState.phase === 'lobby') {
-    const ex = new Set(players);
-    const nu = serverPlayers.filter(p => !ex.has(p));
-    if (nu.length) { players.push(...nu); nu.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; if(!gameState.played[p]) gameState.played[p]=[]; }); }
-    renderAll(); return;
-  }
-  const res = await api('GET', `/getGameState?sessionID=${sessionID}`);
-  if (!res || !res.gameState) {
-    if (!gameState) gameState = { phase:'lobby', deck:[], hands:{}, played:{}, playLog:[], options:{} };
-    renderAll();
-    return;
-  }
-  const serverState = JSON.parse(res.gameState);
-  delete serverState.currentPlayer;
-  const isStaging = stagingCards.length > 0;
-  if (!isOwner) {
-    players = serverPlayers;
-  } else {
-    const ex = new Set(players);
-    players = players.filter(p => serverPlayers.includes(p));
-    const nu = serverPlayers.filter(p => !ex.has(p));
-    if (nu.length) { players.push(...nu); nu.forEach(p => { if(!serverState.hands[p]) serverState.hands[p]=[]; if(!serverState.played[p]) serverState.played[p]=[]; }); }
-  }
-  if (isStaging) {
-    gameState.phase = serverState.phase;
-    gameState.options = serverState.options;
-    players.forEach(p => {
-      if (p !== playerID) {
-        gameState.hands[p] = serverState.hands[p] || [];
-        gameState.played[p] = serverState.played[p] || [];
-      }
-    });
-    gameState.playLog = serverState.playLog || [];
-  } else {
-    gameState = serverState;
-    if (gameState.hands[playerID]) {
-      if (handSortState === 'none') {
-        if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
-        else mergeLocalHand(gameState.hands[playerID]);
-      } else {
-        const serverSet = new Set(gameState.hands[playerID]);
-        localHandOrder = localHandOrder.filter(c => serverSet.has(c));
-        gameState.hands[playerID].forEach(c => { if (!localHandOrder.includes(c)) localHandOrder.push(c); });
-        if (handSortState !== 'none') {
-          const dir = handSortState === 'asc' ? 'asc' : 'desc';
-          localHandOrder.sort((a, b) => {
-            const cardA = getCardDisplay(a);
-            const cardB = getCardDisplay(b);
-            const rankA = rankOrder[cardA.rank] || 0;
-            const rankB = rankOrder[cardB.rank] || 0;
-            let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
-            if (cmp !== 0) return cmp;
-            const suitA = suitOrder[cardA.suit] || 0;
-            const suitB = suitOrder[cardB.suit] || 0;
-            return suitA - suitB;
-          });
+  try {
+    const serverPlayers = await fetchServerPlayers();
+    if (!serverPlayers.length) return;
+    if (isOwner && gameState && gameState.phase === 'lobby') {
+      const ex = new Set(players);
+      const nu = serverPlayers.filter(p => !ex.has(p));
+      if (nu.length) { players.push(...nu); nu.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; if(!gameState.played[p]) gameState.played[p]=[]; }); }
+      renderAll(); return;
+    }
+    const res = await api('GET', `/getGameState?sessionID=${sessionID}`);
+    if (!res || !res.gameState) {
+      if (!gameState) gameState = { phase:'lobby', deck:[], hands:{}, played:{}, playLog:[], options:{} };
+      renderAll();
+      return;
+    }
+    const serverState = JSON.parse(res.gameState);
+    delete serverState.currentPlayer;
+    const isStaging = stagingCards.length > 0;
+    if (!isOwner) {
+      players = serverPlayers;
+    } else {
+      const ex = new Set(players);
+      players = players.filter(p => serverPlayers.includes(p));
+      const nu = serverPlayers.filter(p => !ex.has(p));
+      if (nu.length) { players.push(...nu); nu.forEach(p => { if(!serverState.hands[p]) serverState.hands[p]=[]; if(!serverState.played[p]) serverState.played[p]=[]; }); }
+    }
+    if (isStaging) {
+      gameState.phase = serverState.phase;
+      gameState.options = serverState.options;
+      players.forEach(p => {
+        if (p !== playerID) {
+          gameState.hands[p] = serverState.hands[p] || [];
+          gameState.played[p] = serverState.played[p] || [];
         }
+      });
+      gameState.playLog = serverState.playLog || [];
+    } else {
+      gameState = serverState;
+      if (gameState.hands[playerID]) {
+        if (handSortState === 'none') {
+          if (!localHandOrder.length) localHandOrder = [...gameState.hands[playerID]];
+          else mergeLocalHand(gameState.hands[playerID]);
+        } else {
+          const serverSet = new Set(gameState.hands[playerID]);
+          localHandOrder = localHandOrder.filter(c => serverSet.has(c));
+          gameState.hands[playerID].forEach(c => { if (!localHandOrder.includes(c)) localHandOrder.push(c); });
+          if (handSortState !== 'none') {
+            const dir = handSortState === 'asc' ? 'asc' : 'desc';
+            localHandOrder.sort((a, b) => {
+              const cardA = getCardDisplay(a);
+              const cardB = getCardDisplay(b);
+              const rankA = rankOrder[cardA.rank] || 0;
+              const rankB = rankOrder[cardB.rank] || 0;
+              let cmp = dir === 'asc' ? rankA - rankB : rankB - rankA;
+              if (cmp !== 0) return cmp;
+              const suitA = suitOrder[cardA.suit] || 0;
+              const suitB = suitOrder[cardB.suit] || 0;
+              return suitA - suitB;
+            });
+          }
+        }
+        gameState.hands[playerID] = [...localHandOrder];
       }
-      gameState.hands[playerID] = [...localHandOrder];
+      if (gameState.phase === 'playing' && currentPlayer !== playerID && !(actionMode === 'play' && stagingCards.length > 0)) {
+        stagingCards = [];
+        setActionMode(null);
+      }
     }
-    if (gameState.phase === 'playing' && currentPlayer !== playerID && !(actionMode === 'play' && stagingCards.length > 0)) {
-      stagingCards = [];
-      setActionMode(null);
-    }
+    await fetchCurrentPlayer();
+    renderAll();
+  } catch (e) {
+    // If session is gone (404 or similar), go to home screen
+    console.error('Fetch error, likely session invalid:', e.message);
+    resetUI();
   }
-  await fetchCurrentPlayer();
-  renderAll();
 }
 async function pushGameState(state) {
   const clean = { ...state }; delete clean.currentPlayer;
@@ -1245,7 +1262,14 @@ async function autoDeal() {
     $('dealAutoBtn').textContent = '✓ Dealt';
   }
 }
-async function endSession() { if (isOwner) { await api('POST', '/endSession', { sessionID, playerID }); } resetUI(); }
+async function endSession() {
+  if (isOwner) {
+    try {
+      await api('POST', '/endSession', { sessionID, playerID });
+    } catch (e) { /* ignore errors during cleanup */ }
+  }
+  resetUI();
+}
 function resetUI() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   sessionID=null; playerID=null; isOwner=false; gameState=null; players=[]; localHandOrder=[];
@@ -1283,7 +1307,14 @@ updateJoinCreateButtons();
 createBtn.onclick = createSession;
 joinBtn.onclick = joinSession;
 $('refreshBtn').onclick = fetchGameState;
-$('leaveBtn').onclick = () => { if (isOwner && sessionID) endSession().then(resetUI); else resetUI(); };
+$('leaveBtn').onclick = () => {
+  // Owner ends session, non-owner just resets UI
+  if (isOwner && sessionID) {
+    endSession();
+  } else {
+    resetUI();
+  }
+};
 resetGameBtn.addEventListener('click', resetGame);
 $('shuffleDeckBtn').onclick = shuffleDeck;
 $('dealAutoBtn').onclick = autoDeal;
