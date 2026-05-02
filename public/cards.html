@@ -75,7 +75,7 @@
     .play-row::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
     .play-row::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
     .play-row .played-card {
-      flex-shrink: 0;  /* prevent shrinking to show scrollbar instead */
+      flex-shrink: 0;
     }
     .play-row.overlap .played-card { margin-left: -16px; }
     .play-row.overlap .played-card:first-child { margin-left: 0; }
@@ -129,12 +129,19 @@
       position: absolute; top: -5px; right: -5px; background: #e94560; color: white; border-radius: 50%;
       width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
-    .my-played { display: flex; gap: 3px; flex-wrap: wrap; }
+    .my-played {
+      display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: thin; scrollbar-color: #e94560 #1a1a2e;
+    }
+    .my-played::-webkit-scrollbar { height: 6px; }
+    .my-played::-webkit-scrollbar-track { background: #1a1a2e; border-radius: 3px; }
+    .my-played::-webkit-scrollbar-thumb { background: #e94560; border-radius: 3px; }
     .my-played.overlap .played-card { margin-left: -16px; }
     .my-played.overlap .played-card:first-child { margin-left: 0; }
     .played-card {
       width: 42px; height: 58px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
       font-weight: bold; font-size: 0.9rem; background: #ffffff; border: 2px solid #aaa; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      flex-shrink: 0;
     }
     .played-card.face-down {
       background: repeating-linear-gradient(45deg, #bdc3c7, #bdc3c7 2px, #95a5a6 2px, #95a5a6 4px);
@@ -304,11 +311,7 @@
           <h3>🃏 Play Area</h3>
           <button id="toggleOverlapPlayArea" title="Toggle overlap">↔️</button>
         </div>
-        <div class="scroll-container">
-          <div id="playArea" class="play-area"></div>
-          <span class="scroll-arrow left">◀</span>
-          <span class="scroll-arrow right">▶</span>
-        </div>
+        <div id="playArea" class="play-area"></div>
       </div>
       <div class="deck-pile">
         <div id="deckArea"></div>
@@ -343,7 +346,11 @@
           <h3>📤 Your Played</h3>
           <button id="toggleOverlapPlayed" title="Toggle overlap">↔️</button>
         </div>
-        <div id="myPlayed" class="my-played"></div>
+        <div class="scroll-container">
+          <div id="myPlayed" class="my-played"></div>
+          <span class="scroll-arrow left">◀</span>
+          <span class="scroll-arrow right">▶</span>
+        </div>
       </div>
     </div>
   </div>
@@ -610,13 +617,15 @@ function renderPlayerList() {
     playerListEl.appendChild(li);
   });
 }
+
 function updateScrollArrows() {
-  const containers = [
-    { area: stagingArea, left: stagingArea.parentElement.querySelector('.scroll-arrow.left'), right: stagingArea.parentElement.querySelector('.scroll-arrow.right') },
-    { area: myHand, left: myHand.parentElement.querySelector('.scroll-arrow.left'), right: myHand.parentElement.querySelector('.scroll-arrow.right') }
-  ];
-  containers.forEach(({area, left, right}) => {
-    if (!area || !left || !right) return;
+  const containers = document.querySelectorAll('.scroll-container');
+  containers.forEach(container => {
+    const area = container.querySelector('.staging-area, .hand-container, .my-played, .play-row');
+    if (!area) return;
+    const left = container.querySelector('.scroll-arrow.left');
+    const right = container.querySelector('.scroll-arrow.right');
+    if (!left || !right) return;
     const canScroll = area.scrollWidth > area.clientWidth;
     left.style.display = canScroll ? 'flex' : 'none';
     right.style.display = canScroll ? 'flex' : 'none';
@@ -626,11 +635,13 @@ function updateScrollArrows() {
     }
   });
 }
+
 function attachScrollArrowListeners() {
-  [stagingArea, myHand].forEach(area => {
+  document.querySelectorAll('.staging-area, .hand-container, .my-played, .play-row').forEach(area => {
     area.addEventListener('scroll', updateScrollArrows);
   });
 }
+
 function renderAll() {
   if (!gameState) return;
   updateDeckCounts();
@@ -638,6 +649,33 @@ function renderAll() {
   renderGameBoard();
   updateScrollArrows();
 }
+
+function createScrollableRow(cardsArray, overlap) {
+  const scrollContainer = document.createElement('div');
+  scrollContainer.className = 'scroll-container';
+  const rowDiv = document.createElement('div');
+  rowDiv.className = 'play-row' + (overlap ? ' overlap' : '');
+  cardsArray.forEach(entry => {
+    const cd = getCardDisplay(entry.card);
+    const span = document.createElement('span');
+    span.className = 'played-card';
+    span.style.color = entry.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
+    span.textContent = entry.faceUp ? cd.rank+cd.suit : '🂠';
+    if (!entry.faceUp) span.classList.add('face-down');
+    rowDiv.appendChild(span);
+  });
+  const leftArrow = document.createElement('span');
+  leftArrow.className = 'scroll-arrow left';
+  leftArrow.textContent = '◀';
+  const rightArrow = document.createElement('span');
+  rightArrow.className = 'scroll-arrow right';
+  rightArrow.textContent = '▶';
+  scrollContainer.appendChild(rowDiv);
+  scrollContainer.appendChild(leftArrow);
+  scrollContainer.appendChild(rightArrow);
+  return scrollContainer;
+}
+
 function renderGameBoard() {
   const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
   const opts = gameState.options || { showOtherCards:false, allowDraw:true, allowTakeBack:true, groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false, overlapStaging:false, overlapHand:true, overlapPlayed:false };
@@ -668,11 +706,12 @@ function renderGameBoard() {
   playArea.innerHTML = '';
   if (opts.groupPlayArea) {
     players.forEach(p => {
-      const row = document.createElement('div');
-      row.className = 'play-row';
-      if (overlapPlayAreaLocal) row.classList.add('overlap');
-      row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.marginBottom = '4px';
-      row.innerHTML = `<span style="font-weight:bold;margin-right:4px;">${p}:</span>`;
+      const rowContainer = document.createElement('div');
+      rowContainer.className = 'scroll-container';
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'play-row';
+      if (overlapPlayAreaLocal) rowDiv.classList.add('overlap');
+      rowDiv.style.display = 'flex'; rowDiv.style.alignItems = 'center'; rowDiv.style.marginBottom = '4px';
       const cardsRow = document.createElement('div');
       cardsRow.style.display = 'flex';
       (gameState.played[p] || []).forEach(c => {
@@ -684,13 +723,22 @@ function renderGameBoard() {
         if (!c.faceUp) span.classList.add('face-down');
         cardsRow.appendChild(span);
       });
-      row.appendChild(cardsRow);
-      playArea.appendChild(row);
+      rowDiv.innerHTML = `<span style="font-weight:bold;margin-right:4px;">${p}:</span>`;
+      rowDiv.appendChild(cardsRow);
+      const leftArrow = document.createElement('span');
+      leftArrow.className = 'scroll-arrow left';
+      leftArrow.textContent = '◀';
+      const rightArrow = document.createElement('span');
+      rightArrow.className = 'scroll-arrow right';
+      rightArrow.textContent = '▶';
+      rowContainer.appendChild(rowDiv);
+      rowContainer.appendChild(leftArrow);
+      rowContainer.appendChild(rightArrow);
+      playArea.appendChild(rowContainer);
     });
   } else {
     const log = gameState.playLog || [];
     const MAX_ROW = 13;
-    // Group by commitId
     const batches = [];
     let i = 0;
     while (i < log.length) {
@@ -702,7 +750,6 @@ function renderGameBoard() {
       }
       batches.push(batch);
     }
-    // Build rows from batches
     const rows = [];
     for (const batch of batches) {
       if (rows.length === 0) {
@@ -716,21 +763,9 @@ function renderGameBoard() {
         }
       }
     }
-    // Render rows
     for (const rowLog of rows) {
-      const rowDiv = document.createElement('div');
-      rowDiv.className = 'play-row';
-      if (overlapPlayAreaLocal) rowDiv.classList.add('overlap');
-      for (const entry of rowLog) {
-        const cd = getCardDisplay(entry.card);
-        const span = document.createElement('span');
-        span.className = 'played-card';
-        span.style.color = entry.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
-        span.textContent = entry.faceUp ? cd.rank+cd.suit : '🂠';
-        if (!entry.faceUp) span.classList.add('face-down');
-        rowDiv.appendChild(span);
-      }
-      playArea.appendChild(rowDiv);
+      const rowContainer = createScrollableRow(rowLog, overlapPlayAreaLocal);
+      playArea.appendChild(rowContainer);
     }
   }
 
@@ -1141,6 +1176,11 @@ function updateJoinCreateButtons() {
 }
 joinName.addEventListener('input', updateJoinCreateButtons);
 joinSessionId.addEventListener('input', updateJoinCreateButtons);
+// Clear session ID field on focus
+joinSessionId.addEventListener('focus', () => {
+  joinSessionId.value = '';
+  updateJoinCreateButtons();
+});
 window.addEventListener('DOMContentLoaded', () => {
   updateJoinCreateButtons();
   setTimeout(updateJoinCreateButtons, 200);
