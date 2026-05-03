@@ -61,6 +61,12 @@ function getCachedGameStateID(session) {
   return session.cachedGameStateID;
 }
 
+/** Return the current player ID (or null if game not started). */
+function getCurrentPlayerId(session) {
+  if (!session.gameStarted) return null;
+  return session.playerIDs[session.currentPlayerIndex];
+}
+
 // ---------------------------------------------------------------------------
 //  Routes
 // ---------------------------------------------------------------------------
@@ -125,9 +131,7 @@ app.post('/startGame', (req, res) => {
   session.gameState = normalizeGameState(gameState);
   session.gameStarted = true;
 
-  // The state has changed → recompute fingerprint and cache it
   recomputeAndCacheGameStateID(session);
-
   res.json(true);
 });
 
@@ -159,21 +163,21 @@ app.post('/updateGameState', (req, res) => {
   session.gameState = normalizeGameState(gameState);
   session.currentPlayerIndex = (session.currentPlayerIndex + 1) % session.playerIDs.length;
 
-  // State + currentPlayer have changed → recompute and cache fingerprint
   recomputeAndCacheGameStateID(session);
-
   res.json(true);
 });
 
-// 6. Get game state (with optional long‑polling)
+// 6. Get game state (with optional long‑polling) — NOW INCLUDES currentPlayer
 app.get('/getGameState', async (req, res) => {
   const { sessionID, gameStateID, waitTimeOut } = req.query;
   if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
 
   const session = sessions.get(sessionID);
-  if (!session) return res.json({ gameState: null });
+  if (!session) return res.json({ gameState: null, currentPlayer: null });
 
-  // Long‑poll logic: only active when both optional params are given
+  const currentPlayer = getCurrentPlayerId(session);
+
+  // Long‑poll logic
   if (gameStateID !== undefined && gameStateID !== '' && waitTimeOut !== undefined && waitTimeOut !== '') {
     let timeoutSec = parseFloat(waitTimeOut);
     if (isNaN(timeoutSec) || timeoutSec <= 0) timeoutSec = 5;
@@ -183,22 +187,30 @@ app.get('/getGameState', async (req, res) => {
     const pollInterval = 200; // ms
 
     while (Date.now() < deadline) {
-      // Use the cached fingerprint – instantaneous comparison
       if (getCachedGameStateID(session) !== gameStateID) {
         // State changed – return immediately
-        return res.json({ gameState: session.gameState });
+        return res.json({
+          gameState: session.gameState,
+          currentPlayer: getCurrentPlayerId(session)
+        });
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
     // Timeout with no change
-    return res.json({ gameState: session.gameState });
+    return res.json({
+      gameState: session.gameState,
+      currentPlayer: getCurrentPlayerId(session)
+    });
   }
 
   // Normal immediate return
-  res.json({ gameState: session.gameState });
+  res.json({
+    gameState: session.gameState,
+    currentPlayer
+  });
 });
 
-// 7. Get current player
+// 7. Get current player (kept for backward compatibility, no longer used by default client)
 app.get('/getCurrentPlayer', (req, res) => {
   const { sessionID } = req.query;
   if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
@@ -217,7 +229,6 @@ app.get('/getGameStateID', (req, res) => {
   const session = sessions.get(sessionID);
   if (!session || !session.gameStarted) return res.json({ gameStateID: null });
 
-  // Return the cached fingerprint (computes lazily if needed)
   res.json({ gameStateID: getCachedGameStateID(session) });
 });
 
