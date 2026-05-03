@@ -386,15 +386,14 @@ let sessionID, playerID, isOwner = false;
 let gameState = null;
 let players = [];
 let currentPlayer = null;
-let previousCurrentPlayer = null;   // track previous turn for change detection
-let lastPlayLogLength = 0;         // track playLog length to avoid unnecessary re-renders
+let previousCurrentPlayer = null;
+let lastPlayLogLength = 0;
 let localHandOrder = [];
 let stagingCards = [];
 let actionMode = null;
 let autoRefreshInterval = null;
 let setupButtonsUsed = {};
 let cardsPerPlayer = 7;
-let commitIdCounter = 1;
 
 // Local overlap toggles
 let overlapPlayAreaLocal = false;
@@ -611,7 +610,7 @@ async function commitStaging() {
   if (!isMyTurn) return;
   if (!gameState.played) gameState.played = {};
   if (!gameState.played[playerID]) gameState.played[playerID] = [];
-  const commitId = commitIdCounter++;
+  const commitId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
   if (mode === 'play') {
     const playedArr = gameState.played[playerID];
     for (const entry of stagingCards) {
@@ -807,9 +806,9 @@ function renderGameBoard() {
     const batches = [];
     let i = 0;
     while (i < log.length) {
-      const startCommit = log[i].commitId ?? -1;
+      const startCommit = log[i].commitId;
       const batch = [];
-      while (i < log.length && (log[i].commitId ?? -1) === startCommit) {
+      while (i < log.length && log[i].commitId === startCommit) {
         batch.push(log[i]);
         i++;
       }
@@ -1069,10 +1068,8 @@ async function fetchGameState(force = false) {
     }
     renderAll();
   } catch (e) {
-    // Temporary network issue – don't reset UI, just log and keep current state
     console.warn('Sync issue (network/server error), will retry:', e.message);
     statusMessage.textContent = 'Sync issue… retrying';
-    // Keep previous gameState and currentPlayer intact
   }
 }
 async function pushGameState(state) {
@@ -1106,7 +1103,6 @@ async function resetGame() {
     stagingCards = [];
     setActionMode(null);
     setupButtonsUsed = {};
-    commitIdCounter = 1;
     handSortState = 'none';
 
     for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
@@ -1165,7 +1161,6 @@ async function createSession() {
   const res = await api('POST', '/createSession', { gameID:GAME_ID, playerID, gameState: JSON.stringify(gameState) });
   sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null; previousCurrentPlayer = null;
   setupButtonsUsed = {};
-  commitIdCounter = 1;
   handSortState = 'none';
   for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
     btn.disabled = false;
