@@ -4,7 +4,8 @@ info:
   description: |
     Manage turn‑based multiplayer game sessions.  
     **All player IDs are case‑insensitive.**  
-    Game state can be passed as a plain string or a JSON object (stored as a string).
+    Game state can be passed as a plain string or a JSON object (stored as a string).  
+    The `/getGameState` endpoint supports optional long‑polling via `gameStateID` and `waitTimeOut`.
   version: "2026.05.03"
 servers:
   - url: https://game-server-xi6m.onrender.com
@@ -55,7 +56,7 @@ paths:
               $ref: '#/components/schemas/JoinSessionRequest'
       responses:
         '200':
-          description: Result (true / false)
+          description: true / false
           content:
             application/json:
               schema:
@@ -78,7 +79,7 @@ paths:
               $ref: '#/components/schemas/StartGameRequest'
       responses:
         '200':
-          description: Result (true / false)
+          description: true / false
           content:
             application/json:
               schema:
@@ -131,7 +132,7 @@ paths:
               $ref: '#/components/schemas/UpdateGameStateRequest'
       responses:
         '200':
-          description: true if successful
+          description: true / false
           content:
             application/json:
               schema:
@@ -144,7 +145,12 @@ paths:
   /getGameState:
     get:
       tags: [Game play]
-      summary: Get the current game state
+      summary: Get the current game state (with optional long-polling)
+      description: >
+        If both `gameStateID` and `waitTimeOut` (seconds) are provided, the server will
+        wait up to `waitTimeOut` seconds for the state to change.  
+        It returns immediately when the state changes, or the current (unchanged) state after the timeout.
+        `waitTimeOut` is capped at 30 seconds.
       operationId: getGameState
       parameters:
         - name: sessionID
@@ -152,9 +158,22 @@ paths:
           required: true
           schema:
             type: string
+        - name: gameStateID
+          in: query
+          required: false
+          description: The last known fingerprint (obtained from `/getGameStateID`). Required for long-polling.
+          schema:
+            type: string
+        - name: waitTimeOut
+          in: query
+          required: false
+          description: Max seconds to wait for a change. Required for long-polling.
+          schema:
+            type: number
+            minimum: 0
       responses:
         '200':
-          description: Game state or null
+          description: Current game state (or null if session doesn't exist)
           content:
             application/json:
               schema:
@@ -171,8 +190,7 @@ paths:
   /getCurrentPlayer:
     get:
       tags: [Game play]
-      summary: Get the current player (must be after game start)
-      description: Returns the current player if the game has started, otherwise null.
+      summary: Get the current player (only after game start)
       operationId: getCurrentPlayer
       parameters:
         - name: sessionID
@@ -199,11 +217,10 @@ paths:
   /getGameStateID:
     get:
       tags: [Game play]
-      summary: Get a unique fingerprint of the current game state
+      summary: Get the fingerprint of the current state
       description: >
-        Returns null if the game hasn't started, otherwise a base64-encoded string
-        created by MD5 hashing a JSON object containing the game state, session ID,
-        and current player.
+        Returns null if game not started; otherwise a base64‑encoded MD5 hash
+        of { gameState, sessionID, currentPlayer }.
       operationId: getGameStateID
       parameters:
         - name: sessionID
@@ -213,7 +230,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Base64-encoded hash or null
+          description: Fingerprint or null
           content:
             application/json:
               schema:
@@ -260,7 +277,7 @@ components:
           example: tictactoe
         playerID:
           type: string
-          description: Owner (case‑insensitive)
+          description: Owner of the session (case‑insensitive)
           example: Mickey
         gameState:
           type: string
@@ -289,6 +306,7 @@ components:
           pattern: '^\d{3}$'
         playerID:
           type: string
+          description: Must be the session owner
         playerList:
           type: array
           items:

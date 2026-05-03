@@ -16,6 +16,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 const sessions = new Map();
 
+// ---------------------------------------------------------------------------
+//  Helpers
+// ---------------------------------------------------------------------------
+
 function normalisePlayerID(id) {
   return id.trim().toLowerCase();
 }
@@ -33,22 +37,56 @@ function normalizeGameState(gameState) {
   return JSON.stringify(gameState);
 }
 
+/**
+ * Compute and **store** the fingerprint for a session.
+ * `session._id` must already exist.
+ */
+function recomputeAndCacheGameStateID(session) {
+  const currentPlayer = session.playerIDs[session.currentPlayerIndex];
+  const data = JSON.stringify({
+    gameState: session.gameState,
+    sessionID: session._id,
+    currentPlayer,
+  });
+  session.cachedGameStateID = crypto.createHash('md5').update(data).digest('base64');
+}
+
+/**
+ * Return the cached fingerprint, computing it if missing (shouldn't normally happen).
+ */
+function getCachedGameStateID(session) {
+  if (session.cachedGameStateID === undefined) {
+    recomputeAndCacheGameStateID(session);
+  }
+  return session.cachedGameStateID;
+}
+
+// ---------------------------------------------------------------------------
+//  Routes
+// ---------------------------------------------------------------------------
+
 // 1. Create session
 app.post('/createSession', (req, res) => {
   const { gameID, playerID, gameState } = req.body;
   if (!gameID || !playerID || gameState === undefined) {
     return res.status(400).json({ error: 'Missing gameID, playerID, or gameState' });
   }
+
   const sessionID = generateSessionID();
   const normalisedOwner = normalisePlayerID(playerID);
-  sessions.set(sessionID, {
+
+  const session = {
     gameID,
     ownerID: normalisedOwner,
     playerIDs: [normalisedOwner],
     currentPlayerIndex: 0,
     gameState: normalizeGameState(gameState),
     gameStarted: false,
-  });
+    cachedGameStateID: undefined,   // not started yet
+  };
+  session._id = sessionID;
+  sessions.set(sessionID, session);
+
   res.json({ sessionID });
 });
 
@@ -58,21 +96,16 @@ app.post('/joinSession', (req, res) => {
   if (!gameID || !sessionID || !playerID) {
     return res.status(400).json({ error: 'Missing gameID, sessionID, or playerID' });
   }
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
-  if (session.gameID !== gameID) {
-    return res.json(false);
-  }
-  if (session.gameStarted) {
-    return res.json(false);
-  }
-  const normalisedNewPlayer = normalisePlayerID(playerID);
-  if (session.playerIDs.some(p => p.toLowerCase() === normalisedNewPlayer)) {
-    return res.json(false);
-  }
-  session.playerIDs.push(normalisedNewPlayer);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.gameID !== gameID) return res.json(false);
+  if (session.gameStarted) return res.json(false);
+
+  const normalisedPlayer = normalisePlayerID(playerID);
+  if (session.playerIDs.some(p => p === normalisedPlayer)) return res.json(false);
+
+  session.playerIDs.push(normalisedPlayer);
   res.json(true);
 });
 
@@ -82,31 +115,30 @@ app.post('/startGame', (req, res) => {
   if (!sessionID || !playerID || !playerList || gameState === undefined) {
     return res.status(400).json({ error: 'Missing sessionID, playerID, playerList, or gameState' });
   }
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
-  if (session.ownerID !== normalisePlayerID(playerID)) {
-    return res.json(false);
-  }
-  const normalisedPlayers = playerList.map(p => normalisePlayerID(p));
-  session.playerIDs = normalisedPlayers;
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.ownerID !== normalisePlayerID(playerID)) return res.json(false);
+
+  session.playerIDs = playerList.map(p => normalisePlayerID(p));
   session.currentPlayerIndex = 0;
   session.gameState = normalizeGameState(gameState);
   session.gameStarted = true;
+
+  // The state has changed → recompute fingerprint and cache it
+  recomputeAndCacheGameStateID(session);
+
   res.json(true);
 });
 
 // 4. Get players
 app.get('/getPlayers', (req, res) => {
   const { sessionID } = req.query;
-  if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID' });
-  }
+  if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
   res.json({ players: session.playerIDs });
 });
 
@@ -116,82 +148,88 @@ app.post('/updateGameState', (req, res) => {
   if (!sessionID || !playerID || gameState === undefined) {
     return res.status(400).json({ error: 'Missing sessionID, playerID, or gameState' });
   }
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
-  if (!session.gameStarted) {
-    return res.json(false);
-  }
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (!session.gameStarted) return res.json(false);
+
   const currentPlayer = session.playerIDs[session.currentPlayerIndex];
-  if (normalisePlayerID(playerID) !== currentPlayer) {
-    return res.json(false);
-  }
+  if (normalisePlayerID(playerID) !== currentPlayer) return res.json(false);
+
   session.gameState = normalizeGameState(gameState);
   session.currentPlayerIndex = (session.currentPlayerIndex + 1) % session.playerIDs.length;
+
+  // State + currentPlayer have changed → recompute and cache fingerprint
+  recomputeAndCacheGameStateID(session);
+
   res.json(true);
 });
 
-// 6. Get game state
-app.get('/getGameState', (req, res) => {
-  const { sessionID } = req.query;
-  if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID' });
-  }
+// 6. Get game state (with optional long‑polling)
+app.get('/getGameState', async (req, res) => {
+  const { sessionID, gameStateID, waitTimeOut } = req.query;
+  if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.json({ gameState: null });
+  if (!session) return res.json({ gameState: null });
+
+  // Long‑poll logic: only active when both optional params are given
+  if (gameStateID !== undefined && gameStateID !== '' && waitTimeOut !== undefined && waitTimeOut !== '') {
+    let timeoutSec = parseFloat(waitTimeOut);
+    if (isNaN(timeoutSec) || timeoutSec <= 0) timeoutSec = 5;
+    if (timeoutSec > 30) timeoutSec = 30;
+
+    const deadline = Date.now() + timeoutSec * 1000;
+    const pollInterval = 200; // ms
+
+    while (Date.now() < deadline) {
+      // Use the cached fingerprint – instantaneous comparison
+      if (getCachedGameStateID(session) !== gameStateID) {
+        // State changed – return immediately
+        return res.json({ gameState: session.gameState });
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    // Timeout with no change
+    return res.json({ gameState: session.gameState });
   }
+
+  // Normal immediate return
   res.json({ gameState: session.gameState });
 });
 
 // 7. Get current player
 app.get('/getCurrentPlayer', (req, res) => {
   const { sessionID } = req.query;
-  if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID' });
-  }
+  if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
+
   const session = sessions.get(sessionID);
-  if (!session || !session.gameStarted) {
-    return res.json({ currentPlayer: null });
-  }
-  const currentPlayer = session.playerIDs[session.currentPlayerIndex];
-  res.json({ currentPlayer });
+  if (!session || !session.gameStarted) return res.json({ currentPlayer: null });
+
+  res.json({ currentPlayer: session.playerIDs[session.currentPlayerIndex] });
 });
 
-// 8. Get game state ID (NEW)
+// 8. Get game state ID
 app.get('/getGameStateID', (req, res) => {
   const { sessionID } = req.query;
-  if (!sessionID) {
-    return res.status(400).json({ error: 'Missing sessionID' });
-  }
+  if (!sessionID) return res.status(400).json({ error: 'Missing sessionID' });
+
   const session = sessions.get(sessionID);
-  if (!session || !session.gameStarted) {
-    return res.json({ gameStateID: null });
-  }
-  const currentPlayer = session.playerIDs[session.currentPlayerIndex];
-  const data = JSON.stringify({
-    gameState: session.gameState,
-    sessionID,
-    currentPlayer,
-  });
-  const hash = crypto.createHash('md5').update(data).digest('base64');
-  res.json({ gameStateID: hash });
+  if (!session || !session.gameStarted) return res.json({ gameStateID: null });
+
+  // Return the cached fingerprint (computes lazily if needed)
+  res.json({ gameStateID: getCachedGameStateID(session) });
 });
 
 // 9. End session
 app.post('/endSession', (req, res) => {
   const { sessionID, playerID } = req.body;
-  if (!sessionID || !playerID) {
-    return res.status(400).json({ error: 'Missing sessionID or playerID' });
-  }
+  if (!sessionID || !playerID) return res.status(400).json({ error: 'Missing sessionID or playerID' });
+
   const session = sessions.get(sessionID);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
-  if (session.ownerID !== normalisePlayerID(playerID)) {
-    return res.json(false);
-  }
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.ownerID !== normalisePlayerID(playerID)) return res.json(false);
+
   sessions.delete(sessionID);
   res.json(true);
 });

@@ -91,11 +91,15 @@
         <div class="result" id="updateResult"></div>
     </div>
 
-    <!-- 6. Get Game State -->
+    <!-- 6. Get Game State (with optional longpoll) -->
     <div class="section">
         <h2>6. Get Game State</h2>
         <label>Session ID</label>
         <input id="stateSessionId" placeholder="123">
+        <label>gameStateID (optional – for longpoll)</label>
+        <input id="stateGameStateID" placeholder="base64...">
+        <label>waitTimeOut (seconds, optional)</label>
+        <input id="stateWaitTimeOut" placeholder="5" type="number" min="0" max="30" step="0.5">
         <button onclick="apiGetGameState()">Get Game State</button>
         <div class="result" id="stateResult"></div>
     </div>
@@ -109,7 +113,7 @@
         <div class="result" id="currentPlayerResult"></div>
     </div>
 
-    <!-- 8. Get Game State ID (NEW) -->
+    <!-- 8. Get Game State ID -->
     <div class="section">
         <h2>8. Get Game State ID</h2>
         <label>Session ID</label>
@@ -148,7 +152,7 @@
             document.getElementById('updateSessionId').value = sessionId || '';
             document.getElementById('stateSessionId').value = sessionId || '';
             document.getElementById('currentPlayerSessionId').value = sessionId || '';
-            document.getElementById('gameStateIDSessionId').value = sessionId || '';   // NEW
+            document.getElementById('gameStateIDSessionId').value = sessionId || '';
             document.getElementById('endSessionId').value = sessionId || '';
         }
 
@@ -247,8 +251,17 @@
 
         async function apiGetGameState() {
             const sessionId = document.getElementById('stateSessionId').value;
+            const gameStateID = document.getElementById('stateGameStateID').value.trim();
+            const waitTimeOut = document.getElementById('stateWaitTimeOut').value.trim();
+
+            // Build query string with optional longpoll parameters
+            let query = `sessionID=${encodeURIComponent(sessionId)}`;
+            if (gameStateID !== '' && waitTimeOut !== '') {
+                query += `&gameStateID=${encodeURIComponent(gameStateID)}&waitTimeOut=${encodeURIComponent(waitTimeOut)}`;
+            }
+
             try {
-                const res = await fetch(`${BASE_URL}/getGameState?sessionID=${encodeURIComponent(sessionId)}`);
+                const res = await fetch(`${BASE_URL}/getGameState?${query}`);
                 const data = await res.json();
                 showResult('stateResult', data, !res.ok);
             } catch (err) {
