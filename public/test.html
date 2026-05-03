@@ -25,7 +25,7 @@
     <h1> Game Server Tester</h1>
 
     <div id="currentSession" style="text-align:center; margin-bottom:10px; opacity:0.8;">
-        Session: <span id="sessionIdDisplay">—</span>
+        Session: <span id="sessionIdDisplay">ï¿½</span>
     </div>
 
     <!-- 1. Create Session -->
@@ -96,7 +96,7 @@
         <h2>6. Get Game State</h2>
         <label>Session ID</label>
         <input id="stateSessionId" placeholder="123">
-        <label>gameStateID (optional – for longpoll)</label>
+        <label>gameStateID (optional ï¿½ for longpoll)</label>
         <input id="stateGameStateID" placeholder="base64...">
         <label>waitTimeOut (seconds, optional)</label>
         <input id="stateWaitTimeOut" placeholder="5" type="number" min="0" max="30" step="0.5">
@@ -145,7 +145,7 @@
         }
 
         function setCurrentSession(sessionId) {
-            document.getElementById('sessionIdDisplay').textContent = sessionId || '—';
+            document.getElementById('sessionIdDisplay').textContent = sessionId || 'ï¿½';
             document.getElementById('joinSessionId').value = sessionId || '';
             document.getElementById('startSessionId').value = sessionId || '';
             document.getElementById('playersSessionId').value = sessionId || '';

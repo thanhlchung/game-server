@@ -386,14 +386,17 @@ let sessionID, playerID, isOwner = false;
 let gameState = null;
 let players = [];
 let currentPlayer = null;
-let previousCurrentPlayer = null;
-let lastPlayLogLength = 0;
+let currentGameStateID = null;
+let longPollAbortController = null;
+let autoRefreshInterval = null;      // fallback poll during playing
+let lobbyPollInterval = null;        // lobby poll
+let setupButtonsUsed = {};
+let cardsPerPlayer = 7;
+let uiExiting = false;
+
 let localHandOrder = [];
 let stagingCards = [];
 let actionMode = null;
-let autoRefreshInterval = null;
-let setupButtonsUsed = {};
-let cardsPerPlayer = 7;
 
 // Local overlap toggles
 let overlapPlayAreaLocal = false;
@@ -700,7 +703,7 @@ function attachScrollArrowListeners() {
 }
 
 function renderAll() {
-  if (!gameState) return;
+  if (uiExiting || !gameState) return;
   updateDeckCounts();
   renderPlayerList();
   renderGameBoard();
@@ -734,6 +737,7 @@ function createScrollableRow(cardsArray, overlap) {
 }
 
 function renderGameBoard() {
+  if (uiExiting) return;
   const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
   const opts = gameState.options || { showOtherCards:false, allowDraw:true, allowTakeBack:true, groupPlayArea:false, allowFlipPlayed:false, overlapPlayArea:false, overlapStaging:false, overlapHand:true, overlapPlayed:false };
 
@@ -966,64 +970,178 @@ function renderGameBoard() {
   setupPanel.style.display = (isOwner && gameState.phase === 'lobby') ? 'block' : 'none';
   gameBoard.style.display = (gameState.phase === 'playing') ? 'flex' : 'none';
   joinPanel.style.display = (sessionID === null) ? 'flex' : 'none';
-  statusMessage.textContent = gameState.phase === 'lobby' ? (isOwner ? 'Setting up...' : 'Waiting...') : (isMyTurn ? 'Your turn' : `Waiting ${currentPlayer||'...'}`);
-
+  statusMessage.textContent = gameState.phase === 'lobby' ? (isOwner ? 'Setting up...' : 'Waiting for game to start...') : (isMyTurn ? 'Your turn' : `Waiting ${currentPlayer||'...'}`);
   resetGameBtn.style.display = isOwner ? 'inline-block' : 'none';
 }
 
-// ── State sync ──
-async function fetchCurrentPlayer() {
+// ── Long-polling (wait for state changes) ──
+let longPollRunning = false;
+
+async function fetchGameStateID() {
   if (!sessionID) return;
-  try { const r = await api('GET', `/getCurrentPlayer?sessionID=${sessionID}`); currentPlayer = r.currentPlayer; } catch(e){}
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      const res = await api('GET', `/getGameStateID?sessionID=${sessionID}`);
+      currentGameStateID = res.gameStateID;
+      return;
+    } catch (e) {
+      attempts++;
+      if (attempts < 3) await new Promise(r => setTimeout(r, 500));
+    }
+  }
 }
+
+function stopLongPoll() {
+  if (longPollAbortController) {
+    longPollAbortController.abort();
+    longPollAbortController = null;
+  }
+  longPollRunning = false;
+}
+
+/** Try to get currentPlayer from the /getCurrentPlayer endpoint (used as fallback). */
+async function fetchCurrentPlayerFallback() {
+  try {
+    const res = await Promise.race([
+      api('GET', `/getCurrentPlayer?sessionID=${sessionID}`),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+    ]);
+    return res && res.currentPlayer ? res.currentPlayer : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function longPollLoop() {
+  if (longPollRunning) return;
+  if (uiExiting || !sessionID || !gameState || gameState.phase !== 'playing') {
+    stopLongPoll();
+    return;
+  }
+  if (currentPlayer === playerID) {
+    stopLongPoll();
+    return;
+  }
+  if (!currentGameStateID) {
+    await fetchGameStateID();
+    if (!currentGameStateID) {
+      setTimeout(() => { if (!uiExiting) longPollLoop(); }, 2000);
+      return;
+    }
+  }
+
+  longPollRunning = true;
+  longPollAbortController = new AbortController();
+
+  try {
+    const res = await fetch(`${API}/getGameState?sessionID=${sessionID}&gameStateID=${encodeURIComponent(currentGameStateID)}&waitTimeOut=10`, {
+      signal: longPollAbortController.signal
+    });
+    if (!res.ok) throw new Error('Long poll failed');
+    const data = await res.json();
+    const newGameStateStr = data.gameState;
+    if (newGameStateStr) {
+      const oldState = JSON.stringify(gameState);
+      gameState = JSON.parse(newGameStateStr);
+
+      // currentPlayer: prefer atomic, fallback to separate call, then players[0]
+      if (data.currentPlayer !== undefined) {
+        currentPlayer = data.currentPlayer;
+      } else {
+        const fallback = await fetchCurrentPlayerFallback();
+        currentPlayer = fallback || (players.length > 0 ? players[0] : null);
+      }
+
+      await fetchGameStateID();
+
+      // ALWAYS re-render after a long-poll response, not just when game state string changes.
+      // A pass or other non-mutating turn could leave game state string identical,
+      // but currentPlayer changed – the UI must reflect that.
+      renderAll();
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      console.warn('Long poll error, will retry quickly:', e.message);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  longPollAbortController = null;
+  longPollRunning = false;
+
+  if (!uiExiting && sessionID && gameState && gameState.phase === 'playing' && currentPlayer !== playerID) {
+    longPollLoop();
+  }
+}
+
+function startLongPoll() {
+  stopLongPoll();
+  if (uiExiting || !sessionID || !gameState || gameState.phase !== 'playing' || currentPlayer === playerID) return;
+  longPollLoop();
+}
+
+// ── State sync ──
 async function fetchServerPlayers() {
   if (!sessionID) return [];
   try { const r = await api('GET', `/getPlayers?sessionID=${sessionID}`); return r.players || []; } catch(e){ return []; }
 }
+
 async function fetchGameState(force = false) {
-  if (!sessionID) return;
+  if (uiExiting || !sessionID) return;
+
   try {
     const serverPlayers = await fetchServerPlayers();
     if (!serverPlayers.length) return;
+
+    // Owner lobby: merge new players while preserving local game state
     if (isOwner && gameState && gameState.phase === 'lobby') {
       const ex = new Set(players);
       const nu = serverPlayers.filter(p => !ex.has(p));
-      if (nu.length) { players.push(...nu); nu.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; if(!gameState.played[p]) gameState.played[p]=[]; }); }
-      renderAll(); return;
-    }
-    const res = await api('GET', `/getGameState?sessionID=${sessionID}`);
-    if (!res || !res.gameState) {
-      if (!gameState) gameState = { phase:'lobby', deck:[], hands:{}, played:{}, playLog:[], options:{} };
+      if (nu.length) {
+        players.push(...nu);
+        nu.forEach(p => { if(!gameState.hands[p]) gameState.hands[p]=[]; if(!gameState.played[p]) gameState.played[p]=[]; });
+      }
       renderAll();
       return;
     }
-    const serverState = JSON.parse(res.gameState);
-    delete serverState.currentPlayer;
 
-    // Fetch new current player
-    await fetchCurrentPlayer();
-
-    const newPlayLogLength = (serverState.playLog || []).length;
-    const turnChanged = (currentPlayer !== previousCurrentPlayer);
-
-    // If nothing meaningful changed and we're not forced, skip re-render
-    if (!force && !turnChanged && newPlayLogLength === lastPlayLogLength) {
+    // Fetch full game state
+    const res = await api('GET', `/getGameState?sessionID=${sessionID}`);
+    if (!res || !res.gameState) {
+      if (!gameState) gameState = { phase:'lobby', deck:[], hands:{}, played:{}, playLog:[], options:{} };
+      currentPlayer = null;
+      renderAll();
       return;
     }
 
-    // Update tracking
-    previousCurrentPlayer = currentPlayer;
-    lastPlayLogLength = newPlayLogLength;
+    const serverState = JSON.parse(res.gameState);
+    delete serverState.currentPlayer;   // we get it from response
+
+    // currentPlayer: prefer atomic, fallback to separate call, then players[0]
+    if (res.currentPlayer !== undefined) {
+      currentPlayer = res.currentPlayer;
+    } else {
+      const fallback = await fetchCurrentPlayerFallback();
+      currentPlayer = fallback || (serverPlayers.length > 0 ? serverPlayers[0] : null);
+    }
+
+    if (!serverState.playLog) serverState.playLog = [];
 
     const isStaging = stagingCards.length > 0;
+
     if (!isOwner) {
       players = serverPlayers;
     } else {
       const ex = new Set(players);
       players = players.filter(p => serverPlayers.includes(p));
       const nu = serverPlayers.filter(p => !ex.has(p));
-      if (nu.length) { players.push(...nu); nu.forEach(p => { if(!serverState.hands[p]) serverState.hands[p]=[]; if(!serverState.played[p]) serverState.played[p]=[]; }); }
+      if (nu.length) {
+        players.push(...nu);
+        nu.forEach(p => { if(!serverState.hands[p]) serverState.hands[p]=[]; if(!serverState.played[p]) serverState.played[p]=[]; });
+      }
     }
+
     if (isStaging) {
       gameState.phase = serverState.phase;
       gameState.options = serverState.options;
@@ -1066,15 +1184,34 @@ async function fetchGameState(force = false) {
         setActionMode(null);
       }
     }
+
     renderAll();
+
+    if (gameState.phase === 'playing') {
+      stopLobbyPoll();
+      startFallbackPoll();
+      if (currentPlayer !== playerID) {
+        startLongPoll();
+      }
+    }
   } catch (e) {
-    console.warn('Sync issue (network/server error), will retry:', e.message);
+    console.warn('Sync issue:', e.message);
     statusMessage.textContent = 'Sync issue… retrying';
   }
 }
+
 async function pushGameState(state) {
-  const clean = { ...state }; delete clean.currentPlayer;
+  const clean = { ...state };
+  delete clean.currentPlayer;
   await api('POST', '/updateGameState', { sessionID, playerID, gameState: JSON.stringify(clean) });
+
+  // Optimistically advance turn locally (the server will confirm this)
+  const myIndex = players.indexOf(playerID);
+  if (myIndex !== -1) {
+    currentPlayer = players[(myIndex + 1) % players.length];
+  }
+
+  stopLongPoll();
   await fetchGameState(true);
 }
 
@@ -1104,6 +1241,8 @@ async function resetGame() {
     setActionMode(null);
     setupButtonsUsed = {};
     handSortState = 'none';
+    currentGameStateID = null;
+    stopLongPoll();
 
     for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
       btn.disabled = false;
@@ -1133,9 +1272,37 @@ async function resetGame() {
 
     setupPanel.style.display = 'block';
     gameBoard.style.display = 'none';
-    await fetchCurrentPlayer();
+    currentPlayer = null;
     renderAll();
+    startLobbyPoll();
   } catch (e) { alert('Reset failed: ' + e.message); }
+}
+
+// ── Lobby polling ──
+function startLobbyPoll() {
+  stopLobbyPoll();
+  lobbyPollInterval = setInterval(() => {
+    if (gameState && gameState.phase === 'lobby') {
+      fetchGameState(false);
+    }
+  }, 2000);
+}
+
+function stopLobbyPoll() {
+  if (lobbyPollInterval) {
+    clearInterval(lobbyPollInterval);
+    lobbyPollInterval = null;
+  }
+}
+
+// Fallback poll during playing
+function startFallbackPoll() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(() => {
+    if (gameState && gameState.phase === 'playing' && currentPlayer !== playerID) {
+      fetchGameState(false);
+    }
+  }, 3000);
 }
 
 // ── Lobby & Setup ──
@@ -1159,7 +1326,9 @@ async function createSession() {
     }
   };
   const res = await api('POST', '/createSession', { gameID:GAME_ID, playerID, gameState: JSON.stringify(gameState) });
-  sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null; previousCurrentPlayer = null;
+  sessionID = res.sessionID; isOwner = true; localHandOrder = []; currentPlayer = null;
+  currentGameStateID = null;
+  uiExiting = false;
   setupButtonsUsed = {};
   handSortState = 'none';
   for (const btn of [$('shuffleDeckBtn'), $('dealAutoBtn'), $('autoOrderBtn')]) {
@@ -1175,12 +1344,16 @@ async function createSession() {
   pokerOrderToggleLabel.textContent = 'Asc';
   sessionDisplay.textContent = '🏠 '+sessionID; playerDisplay.textContent = '👤 '+playerID;
   ownerBadge.style.display = 'inline'; joinPanel.style.display = 'none';
+  setupPanel.style.display = 'block';
+  gameBoard.style.display = 'none';
   resetGameBtn.style.display = 'inline-block';
   document.querySelectorAll('#setupPanel input[type=checkbox]').forEach(cb => cb.checked = false);
   $('allowDrawCb').checked = true; $('allowTakeBackCb').checked = true;
   $('overlapHandCb').checked = true;
-  renderAll(); startAutoRefresh();
+  renderAll();
+  startLobbyPoll();
 }
+
 async function joinSession() {
   const name = joinName.value.trim(), sess = joinSessionId.value.trim();
   if (!name || !sess) return;
@@ -1193,10 +1366,10 @@ async function joinSession() {
     resetGameBtn.style.display = 'none';
     await fetchGameState(true);
     if (players[0] === playerID) { isOwner = true; ownerBadge.style.display = 'inline'; resetGameBtn.style.display = 'inline-block'; }
-    startAutoRefresh();
+    startLobbyPoll();
   } catch(e) { alert(e.message); }
 }
-function startAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefreshInterval); autoRefreshInterval = setInterval(() => fetchGameState(false), 3000); }
+
 async function startGame() {
   if (!isOwner) return;
   gameState.options = {
@@ -1214,7 +1387,13 @@ async function startGame() {
   overlapPlayedLocal = gameState.options.overlapPlayed;
 
   await api('POST', '/startGame', { sessionID, playerID, playerList:[...players], gameState: JSON.stringify(gameState) });
+
+  // Owner always gets the first turn – set optimistically so UI never shows "Waiting..."
+  currentPlayer = playerID;
+
+  stopLobbyPoll();
   await fetchGameState(true);
+  startFallbackPoll();
 }
 
 pokerOrderToggle.addEventListener('change', () => {
@@ -1248,6 +1427,7 @@ async function autoOrderDealtCards() {
     $('autoOrderBtn').textContent = '✓ Poker Order';
   }
 }
+
 async function shuffleDeck() {
   if (!isOwner || gameState.phase!=='lobby') return;
   shuffle(gameState.deck); renderAll();
@@ -1257,6 +1437,7 @@ async function shuffleDeck() {
     $('shuffleDeckBtn').textContent = '✓ Shuffled';
   }
 }
+
 async function autoDeal() {
   if (!isOwner || gameState.phase!=='lobby') return;
   const num = cardsPerPlayer;
@@ -1271,28 +1452,34 @@ async function autoDeal() {
     $('dealAutoBtn').textContent = '✓ Dealt';
   }
 }
+
 async function endSession() {
   if (isOwner) {
-    try {
-      await api('POST', '/endSession', { sessionID, playerID });
-    } catch (e) { /* ignore errors during cleanup */ }
+    try { await api('POST', '/endSession', { sessionID, playerID }); } catch (e) { /* ignore */ }
   }
-  resetUI();
-}
-function resetUI() {
-  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-  sessionID=null; playerID=null; isOwner=false; gameState=null; players=[]; localHandOrder=[];
-  stagingCards = []; setActionMode(null); setupButtonsUsed = {};
-  handSortState = 'none';
-  lastPlayLogLength = 0;
-  previousCurrentPlayer = null;
-  sessionDisplay.textContent='🏠 -'; playerDisplay.textContent='👤 -'; ownerBadge.style.display='none';
-  resetGameBtn.style.display = 'none';
-  statusMessage.textContent=''; joinPanel.style.display='flex'; setupPanel.style.display='none'; gameBoard.style.display='none';
-  joinBtn.disabled = true; createBtn.disabled = false;
 }
 
-// ── Home screen button logic (create always enabled) ──
+function resetUI() {
+  uiExiting = true;
+  stopLongPoll();
+  stopLobbyPoll();
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  sessionID = null; playerID = null; isOwner = false; gameState = null; players = []; localHandOrder = [];
+  stagingCards = []; setActionMode(null); setupButtonsUsed = {};
+  handSortState = 'none';
+  currentGameStateID = null;
+  currentPlayer = null;
+  sessionDisplay.textContent = '🏠 -'; playerDisplay.textContent = '👤 -'; ownerBadge.style.display = 'none';
+  resetGameBtn.style.display = 'none';
+  statusMessage.textContent = '';
+  setupPanel.style.display = 'none';
+  gameBoard.style.display = 'none';
+  joinPanel.style.display = 'flex';
+  joinBtn.disabled = true; createBtn.disabled = false;
+  uiExiting = false;
+}
+
+// ── Home screen button logic ──
 function updateJoinCreateButtons() {
   const nameVal = joinName.value.trim();
   const sessVal = joinSessionId.value.trim();
@@ -1301,7 +1488,6 @@ function updateJoinCreateButtons() {
 }
 joinName.addEventListener('input', updateJoinCreateButtons);
 joinSessionId.addEventListener('input', updateJoinCreateButtons);
-// Clear session ID field on focus
 joinSessionId.addEventListener('focus', () => {
   joinSessionId.value = '';
   updateJoinCreateButtons();
@@ -1319,11 +1505,8 @@ createBtn.onclick = createSession;
 joinBtn.onclick = joinSession;
 $('refreshBtn').onclick = () => fetchGameState(true);
 $('leaveBtn').onclick = () => {
-  if (isOwner && sessionID) {
-    endSession();
-  } else {
-    resetUI();
-  }
+  if (isOwner && sessionID) { endSession(); }
+  resetUI();
 };
 resetGameBtn.addEventListener('click', resetGame);
 $('shuffleDeckBtn').onclick = shuffleDeck;
