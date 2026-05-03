@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const swaggerDocument = YAML.load('./openapi.yaml');
@@ -144,7 +145,7 @@ app.get('/getGameState', (req, res) => {
   res.json({ gameState: session.gameState });
 });
 
-// 7. Get current player (NEW)
+// 7. Get current player
 app.get('/getCurrentPlayer', (req, res) => {
   const { sessionID } = req.query;
   if (!sessionID) {
@@ -158,7 +159,27 @@ app.get('/getCurrentPlayer', (req, res) => {
   res.json({ currentPlayer });
 });
 
-// 8. End session
+// 8. Get game state ID (NEW)
+app.get('/getGameStateID', (req, res) => {
+  const { sessionID } = req.query;
+  if (!sessionID) {
+    return res.status(400).json({ error: 'Missing sessionID' });
+  }
+  const session = sessions.get(sessionID);
+  if (!session || !session.gameStarted) {
+    return res.json({ gameStateID: null });
+  }
+  const currentPlayer = session.playerIDs[session.currentPlayerIndex];
+  const data = JSON.stringify({
+    gameState: session.gameState,
+    sessionID,
+    currentPlayer,
+  });
+  const hash = crypto.createHash('md5').update(data).digest('base64');
+  res.json({ gameStateID: hash });
+});
+
+// 9. End session
 app.post('/endSession', (req, res) => {
   const { sessionID, playerID } = req.body;
   if (!sessionID || !playerID) {

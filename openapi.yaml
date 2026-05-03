@@ -1,29 +1,342 @@
-/getCurrentPlayer:
-  get:
-    tags: [Game play]
-    summary: Get the current player whose turn it is
-    description: |
-      Returns the current player if the game has started.  
-      Returns `null` if the game hasn't started yet or the session doesn't exist.
-    operationId: getCurrentPlayer
-    parameters:
-      - name: sessionID
-        in: query
+openapi: 3.0.3
+info:
+  title: Game Session Server API
+  description: |
+    Manage turn‑based multiplayer game sessions.  
+    **All player IDs are case‑insensitive.**  
+    Game state can be passed as a plain string or a JSON object (stored as a string).
+  version: "2026.05.03"
+servers:
+  - url: https://game-server-xi6m.onrender.com
+    description: Production server
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Session management
+  - name: Game play
+
+paths:
+  /createSession:
+    post:
+      tags: [Session management]
+      summary: Create a new game session
+      operationId: createSession
+      requestBody:
         required: true
-        schema:
-          type: string
-    responses:
-      '200':
-        description: Current player or null
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                currentPlayer:
-                  type: string
-                  nullable: true
-              example:
-                currentPlayer: "mickey"
-      '400':
-        $ref: '#/components/responses/BadRequest'
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '200':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionID:
+                    type: string
+                    pattern: '^\d{3}$'
+                    example: '042'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /joinSession:
+    post:
+      tags: [Session management]
+      summary: Join an existing game session
+      operationId: joinSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinSessionRequest'
+      responses:
+        '200':
+          description: Result (true / false)
+          content:
+            application/json:
+              schema:
+                type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /startGame:
+    post:
+      tags: [Game play]
+      summary: Start the game (owner only)
+      operationId: startGame
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartGameRequest'
+      responses:
+        '200':
+          description: Result (true / false)
+          content:
+            application/json:
+              schema:
+                type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /getPlayers:
+    get:
+      tags: [Session management]
+      summary: Get the player list
+      operationId: getPlayers
+      parameters:
+        - name: sessionID
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Player list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      type: string
+                example:
+                  players: ["mickey", "donald"]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /updateGameState:
+    post:
+      tags: [Game play]
+      summary: Update game state (current player only)
+      operationId: updateGameState
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGameStateRequest'
+      responses:
+        '200':
+          description: true if successful
+          content:
+            application/json:
+              schema:
+                type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /getGameState:
+    get:
+      tags: [Game play]
+      summary: Get the current game state
+      operationId: getGameState
+      parameters:
+        - name: sessionID
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Game state or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameState:
+                    type: string
+                    nullable: true
+                example:
+                  gameState: '{"board":[".",".","."],"turn":0}'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /getCurrentPlayer:
+    get:
+      tags: [Game play]
+      summary: Get the current player (must be after game start)
+      description: Returns the current player if the game has started, otherwise null.
+      operationId: getCurrentPlayer
+      parameters:
+        - name: sessionID
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current player or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currentPlayer:
+                    type: string
+                    nullable: true
+                example:
+                  currentPlayer: "mickey"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /getGameStateID:
+    get:
+      tags: [Game play]
+      summary: Get a unique fingerprint of the current game state
+      description: >
+        Returns null if the game hasn't started, otherwise a base64-encoded string
+        created by MD5 hashing a JSON object containing the game state, session ID,
+        and current player.
+      operationId: getGameStateID
+      parameters:
+        - name: sessionID
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Base64-encoded hash or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameStateID:
+                    type: string
+                    nullable: true
+                    example: "XxJ4vBG6zrM8YHqKZ9f1hQ=="
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /endSession:
+    post:
+      tags: [Session management]
+      summary: End a game session (owner only)
+      operationId: endSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndSessionRequest'
+      responses:
+        '200':
+          description: true if deleted
+          content:
+            application/json:
+              schema:
+                type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    CreateSessionRequest:
+      type: object
+      required: [gameID, playerID, gameState]
+      properties:
+        gameID:
+          type: string
+          example: tictactoe
+        playerID:
+          type: string
+          description: Owner (case‑insensitive)
+          example: Mickey
+        gameState:
+          type: string
+          example: '{"board":[".",".","."],"turn":0}'
+
+    JoinSessionRequest:
+      type: object
+      required: [gameID, sessionID, playerID]
+      properties:
+        gameID:
+          type: string
+          example: tictactoe
+        sessionID:
+          type: string
+          pattern: '^\d{3}$'
+        playerID:
+          type: string
+          example: donald
+
+    StartGameRequest:
+      type: object
+      required: [sessionID, playerID, playerList, gameState]
+      properties:
+        sessionID:
+          type: string
+          pattern: '^\d{3}$'
+        playerID:
+          type: string
+        playerList:
+          type: array
+          items:
+            type: string
+          example: ["mickey", "donald"]
+        gameState:
+          type: string
+          example: '{"board":[".",".","."],"turn":0}'
+
+    UpdateGameStateRequest:
+      type: object
+      required: [sessionID, playerID, gameState]
+      properties:
+        sessionID:
+          type: string
+          pattern: '^\d{3}$'
+        playerID:
+          type: string
+        gameState:
+          type: string
+          example: '{"board":["X",".","."],"turn":1}'
+
+    EndSessionRequest:
+      type: object
+      required: [sessionID, playerID]
+      properties:
+        sessionID:
+          type: string
+          pattern: '^\d{3}$'
+        playerID:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Missing or invalid parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    NotFound:
+      description: Session not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string

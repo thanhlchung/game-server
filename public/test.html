@@ -22,10 +22,10 @@
     </style>
 </head>
 <body>
-    <h1>🎮 Game Server Tester</h1>
+    <h1> Game Server Tester</h1>
 
     <div id="currentSession" style="text-align:center; margin-bottom:10px; opacity:0.8;">
-        Session: <span id="sessionIdDisplay">—</span>
+        Session: <span id="sessionIdDisplay">�</span>
     </div>
 
     <!-- 1. Create Session -->
@@ -100,7 +100,7 @@
         <div class="result" id="stateResult"></div>
     </div>
 
-    <!-- 7. Get Current Player (NEW) -->
+    <!-- 7. Get Current Player -->
     <div class="section">
         <h2>7. Get Current Player</h2>
         <label>Session ID</label>
@@ -109,9 +109,18 @@
         <div class="result" id="currentPlayerResult"></div>
     </div>
 
-    <!-- 8. End Session -->
+    <!-- 8. Get Game State ID (NEW) -->
     <div class="section">
-        <h2>8. End Session</h2>
+        <h2>8. Get Game State ID</h2>
+        <label>Session ID</label>
+        <input id="gameStateIDSessionId" placeholder="123">
+        <button onclick="apiGetGameStateID()">Get Game State ID</button>
+        <div class="result" id="gameStateIDResult"></div>
+    </div>
+
+    <!-- 9. End Session -->
+    <div class="section">
+        <h2>9. End Session</h2>
         <label>Session ID</label>
         <input id="endSessionId" placeholder="123">
         <label>Player ID (must be owner)</label>
@@ -120,7 +129,7 @@
         <div class="result" id="endResult"></div>
     </div>
 
-    <div class="note">🔗 Server: https://game-server-xi6m.onrender.com</div>
+    <div class="note"> Server: https://game-server-xi6m.onrender.com</div>
 
     <script>
         const BASE_URL = 'https://game-server-xi6m.onrender.com';
@@ -132,13 +141,14 @@
         }
 
         function setCurrentSession(sessionId) {
-            document.getElementById('sessionIdDisplay').textContent = sessionId || '—';
+            document.getElementById('sessionIdDisplay').textContent = sessionId || '�';
             document.getElementById('joinSessionId').value = sessionId || '';
             document.getElementById('startSessionId').value = sessionId || '';
             document.getElementById('playersSessionId').value = sessionId || '';
             document.getElementById('updateSessionId').value = sessionId || '';
             document.getElementById('stateSessionId').value = sessionId || '';
             document.getElementById('currentPlayerSessionId').value = sessionId || '';
+            document.getElementById('gameStateIDSessionId').value = sessionId || '';   // NEW
             document.getElementById('endSessionId').value = sessionId || '';
         }
 
@@ -254,6 +264,17 @@
                 showResult('currentPlayerResult', data, !res.ok);
             } catch (err) {
                 showResult('currentPlayerResult', 'Network error: ' + err.message, true);
+            }
+        }
+
+        async function apiGetGameStateID() {
+            const sessionId = document.getElementById('gameStateIDSessionId').value;
+            try {
+                const res = await fetch(`${BASE_URL}/getGameStateID?sessionID=${encodeURIComponent(sessionId)}`);
+                const data = await res.json();
+                showResult('gameStateIDResult', data, !res.ok);
+            } catch (err) {
+                showResult('gameStateIDResult', 'Network error: ' + err.message, true);
             }
         }
 
