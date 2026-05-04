@@ -387,7 +387,7 @@ let gameState = null;
 let players = [];
 let currentPlayer = null;
 let currentGameStateID = null;
-let lastGameStateStr = null;          // used to detect when the game state content actually changes
+let lastGameStateStr = null;          // keep tracking for minimal updates
 let longPollAbortController = null;
 let autoRefreshInterval = null;
 let lobbyPollInterval = null;
@@ -708,7 +708,7 @@ function renderAll() {
   updateScrollArrows();
 }
 
-/** Minimal update: only status message and enable/disable action buttons */
+/** Minimal UI update: status + button enable, without touching play area */
 function renderMinimal() {
   if (uiExiting || !gameState) return;
   const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
@@ -717,6 +717,14 @@ function renderMinimal() {
     : (isMyTurn ? 'Your turn' : `Waiting ${currentPlayer||'...'}`);
   passBtn.disabled = !(isMyTurn && stagingCards.length === 0);
   playStagedBtn.disabled = !(isMyTurn && stagingCards.length > 0);
+}
+
+/** Update only the deck and your-played sections to reflect current turn.
+    This is called when the game-state string stays the same but the turn changes. */
+function renderInteractiveSections() {
+  const isMyTurn = (currentPlayer === playerID && gameState.phase === 'playing');
+  renderDeckArea(isMyTurn);
+  renderMyPlayedArea(isMyTurn);
 }
 
 function createScrollableRow(cardsArray, overlap) {
@@ -743,6 +751,59 @@ function createScrollableRow(cardsArray, overlap) {
   scrollContainer.appendChild(leftArrow);
   scrollContainer.appendChild(rightArrow);
   return scrollContainer;
+}
+
+function renderDeckArea(isMyTurn) {
+  deckArea.innerHTML = '';
+  const opts = gameState.options || {};
+  const deckRemaining = gameState.deck.length;
+  $('deckCountLabel').textContent = `${deckRemaining} left`;
+  if (deckRemaining > 0) {
+    const deckIcon = document.createElement('div');
+    deckIcon.className = 'deck-icon';
+    deckIcon.textContent = '🂠';
+    if (isMyTurn && opts.allowDraw && (!actionMode || actionMode === 'draw')) {
+      deckIcon.draggable = true;
+      deckIcon.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'draw'));
+    }
+    deckArea.appendChild(deckIcon);
+  }
+  deckArea.ondragover = e => e.preventDefault();
+  deckArea.ondrop = e => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (data.startsWith('stagingReturn:')) {
+      const idx = parseInt(data.split(':')[1]);
+      if (!isNaN(idx) && stagingCards[idx]?.source === 'draw') removeStagingCard(idx);
+    }
+  };
+}
+
+function renderMyPlayedArea(isMyTurn) {
+  const container = myPlayed;
+  container.innerHTML = '';
+  container.classList.toggle('overlap', overlapPlayedLocal);
+  const opts = gameState.options || {};
+  const myCards = gameState.played[playerID] || [];
+  myCards.forEach((c, idx) => {
+    const cd = getCardDisplay(c.card);
+    const cardEl = document.createElement('div');
+    cardEl.className = 'played-card';
+    if (!c.faceUp) cardEl.classList.add('face-down');
+    cardEl.style.color = c.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
+    cardEl.textContent = c.faceUp ? (cd.rank+cd.suit) : '🂠';
+    if (isMyTurn && opts.allowTakeBack && (!actionMode || actionMode === 'takeback')) {
+      cardEl.draggable = true;
+      cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'takeback:' + idx));
+    }
+    if (isMyTurn && opts.allowFlipPlayed && (!actionMode || actionMode === 'flip')) {
+      cardEl.onclick = () => {
+        const newFace = !c.faceUp;
+        addToStaging(c.card, newFace, 'flip', { playedIndex: idx, originalCard: { card: c.card, faceUp: c.faceUp } });
+      };
+    }
+    container.appendChild(cardEl);
+  });
 }
 
 function renderGameBoard() {
@@ -867,31 +928,11 @@ function renderGameBoard() {
     });
   });
 
-  // Deck
-  deckArea.innerHTML = '';
-  const deckRemaining = gameState.deck.length;
-  $('deckCountLabel').textContent = `${deckRemaining} left`;
-  if (deckRemaining > 0) {
-    const deckIcon = document.createElement('div');
-    deckIcon.className = 'deck-icon';
-    deckIcon.textContent = '🂠';
-    if (isMyTurn && opts.allowDraw && (!actionMode || actionMode === 'draw')) {
-      deckIcon.draggable = true;
-      deckIcon.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'draw'));
-    }
-    deckArea.appendChild(deckIcon);
-  }
-  deckArea.ondragover = e => e.preventDefault();
-  deckArea.ondrop = e => {
-    e.preventDefault();
-    const data = e.dataTransfer.getData('text/plain');
-    if (data.startsWith('stagingReturn:')) {
-      const idx = parseInt(data.split(':')[1]);
-      if (!isNaN(idx) && stagingCards[idx]?.source === 'draw') removeStagingCard(idx);
-    }
-  };
+  // Deck and my played cards (full render calls these directly)
+  renderDeckArea(isMyTurn);
+  renderMyPlayedArea(isMyTurn);
 
-  // Hand (order button state reflected)
+  // Hand
   myHand.innerHTML = '';
   myHand.classList.toggle('no-overlap', !overlapHandLocal);
   localHandOrder.forEach((cs, idx) => {
@@ -972,29 +1013,6 @@ function renderGameBoard() {
     stagingArea.appendChild(cardEl);
   });
 
-  // Your played cards
-  myPlayed.innerHTML = '';
-  myPlayed.classList.toggle('overlap', overlapPlayedLocal);
-  (gameState.played[playerID] || []).forEach((c, idx) => {
-    const cd = getCardDisplay(c.card);
-    const cardEl = document.createElement('div');
-    cardEl.className = 'played-card';
-    if (!c.faceUp) cardEl.classList.add('face-down');
-    cardEl.style.color = c.faceUp ? (isRed(cd.suit) ? '#e94560' : '#000') : '#2c3e50';
-    cardEl.textContent = c.faceUp ? (cd.rank+cd.suit) : '🂠';
-    if (isMyTurn && opts.allowTakeBack && (!actionMode || actionMode === 'takeback')) {
-      cardEl.draggable = true;
-      cardEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', 'takeback:' + idx));
-    }
-    if (isMyTurn && opts.allowFlipPlayed && (!actionMode || actionMode === 'flip')) {
-      cardEl.onclick = () => {
-        const newFace = !c.faceUp;
-        addToStaging(c.card, newFace, 'flip', { playedIndex: idx, originalCard: { card: c.card, faceUp: c.faceUp } });
-      };
-    }
-    myPlayed.appendChild(cardEl);
-  });
-
   passBtn.disabled = !(isMyTurn && stagingCards.length === 0);
   playStagedBtn.disabled = !(isMyTurn && stagingCards.length > 0);
   setupPanel.style.display = (isOwner && gameState.phase === 'lobby') ? 'block' : 'none';
@@ -1059,19 +1077,26 @@ async function longPollLoop() {
     const data = await res.json();
     const newGameStateStr = data.gameState;
     if (newGameStateStr) {
-      // currentPlayer from response (atomic)
+      const wasMyTurn = (currentPlayer === playerID && gameState && gameState.phase === 'playing');
       currentPlayer = data.currentPlayer !== undefined ? data.currentPlayer : (players.length > 0 ? players[0] : null);
+      const isMyTurnNow = (currentPlayer === playerID && gameState && gameState.phase === 'playing');
 
-      // If game state content actually changed, update it and do full render
       if (newGameStateStr !== lastGameStateStr) {
         lastGameStateStr = newGameStateStr;
         gameState = JSON.parse(newGameStateStr);
         await fetchGameStateID();
         renderAll();
       } else {
-        // Only the current player changed (pass) – minimal UI update
+        // Game state string unchanged – only currentPlayer changed
         await fetchGameStateID();
-        renderMinimal();
+        if (isMyTurnNow && !wasMyTurn) {
+          // Turn just became ours → activate deck & played cards without full rebuild
+          renderInteractiveSections();
+        } else if (!isMyTurnNow && wasMyTurn) {
+          // Turn just left us → deactivate those areas
+          renderInteractiveSections();
+        }
+        renderMinimal();   // update status and buttons
       }
     }
   } catch (e) {
@@ -1129,12 +1154,14 @@ async function fetchGameState() {
     }
 
     const newGameStateStr = res.gameState;
+    const wasMyTurn = (currentPlayer === playerID && gameState && gameState.phase === 'playing');
     currentPlayer = res.currentPlayer !== undefined ? res.currentPlayer : (serverPlayers.length > 0 ? serverPlayers[0] : null);
+    const isMyTurnNow = (currentPlayer === playerID && gameState && gameState.phase === 'playing');
 
     if (newGameStateStr !== lastGameStateStr) {
       lastGameStateStr = newGameStateStr;
       const serverState = JSON.parse(newGameStateStr);
-      delete serverState.currentPlayer;   // not needed
+      delete serverState.currentPlayer;
       if (!serverState.playLog) serverState.playLog = [];
 
       const isStaging = stagingCards.length > 0;
@@ -1197,6 +1224,11 @@ async function fetchGameState() {
       renderAll();
     } else {
       // game state string unchanged – only currentPlayer changed
+      if (isMyTurnNow && !wasMyTurn) {
+        renderInteractiveSections();
+      } else if (!isMyTurnNow && wasMyTurn) {
+        renderInteractiveSections();
+      }
       renderMinimal();
     }
 
